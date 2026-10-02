@@ -65,7 +65,7 @@ def build_room_property_summary(df: pd.DataFrame) -> pd.DataFrame:
 def build_host_type_summary(df: pd.DataFrame) -> pd.DataFrame:
     """Single (== 1) versus multi (> 1) hosts. Listings with missing host_type are excluded."""
     d = df[df["host_type"].notna()].copy()
-    for col in ("amenity_count", "availability_rate_90d", "calendar_median_price_90d", "reviews_last_90d"):
+    for col in ("amenity_count", "availability_rate_90d", "reviews_last_90d"):
         d[col] = pd.to_numeric(d[col], errors="coerce")
     rows = []
     for host_type in ("single", "multi"):
@@ -76,7 +76,6 @@ def build_host_type_summary(df: pd.DataFrame) -> pd.DataFrame:
             "median_listing_price": g["listing_price"].median(),
             "median_amenity_count": g["amenity_count"].median(),
             "median_availability_rate_90d": g["availability_rate_90d"].median(),
-            "median_calendar_median_price_90d": g["calendar_median_price_90d"].median(),
             "median_reviews_last_90d": g["reviews_last_90d"].median(),
         }
         for room, count in g["room_type"].fillna(MISSING_LABEL).value_counts().sort_index().items():
@@ -104,7 +103,6 @@ def build_data_quality_summary(diag: dict, final: pd.DataFrame) -> pd.DataFrame:
     metrics["host_type_missing"] = int(final["host_type"].isna().sum())
     metrics.update(count_prop("listings_passing_calendar_coverage_30d", final["calendar_coverage_rate_30"] * 100 >= 80))
     metrics.update(count_prop("listings_passing_calendar_coverage_90d", final["calendar_coverage_rate_90"] * 100 >= 80))
-    metrics.update(count_prop("listings_with_weekend_premium", final["weekend_premium_pct_90d"].notna()))
     # Two distinct review-coverage concepts (listing 3 in the fixtures separates them):
     metrics["prop_listings_with_review_on_or_before_snapshot"] = (
         float(final["has_review_on_or_before_snapshot"].mean()) if n else np.nan
@@ -176,15 +174,15 @@ def _fig3(df, path):
 
 def _fig4(df, path):
     fig, ax = plt.subplots(figsize=(8, 5))
-    d = df.dropna(subset=["calendar_median_price_90d", "availability_rate_90d"])
+    d = df.dropna(subset=["listing_price", "availability_rate_90d"])
     if d.empty:
         _no_data(ax)
     else:
-        ax.scatter(d["calendar_median_price_90d"], d["availability_rate_90d"], alpha=0.4, s=14)
-        ax.set_xlabel("Median future quoted price, next 90 days (USD)")
+        ax.scatter(d["listing_price"], d["availability_rate_90d"], alpha=0.4, s=14)
+        ax.set_xlabel("Listing price (USD)")
         ax.set_ylabel("Forward availability rate, next 90 days")
         ax.set_ylim(-0.02, 1.02)
-    ax.set_title("Future availability vs future quoted price")
+    ax.set_title("Forward availability (90 days) vs listing price")
     return _finish(fig, path)
 
 

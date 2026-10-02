@@ -1,12 +1,10 @@
 # Synthetic test fixtures
 
 Tiny, hand-designed data (not Inside Airbnb data) with the same column names as the real
-files. Snapshot date is `2026-06-25` (a **Thursday**), so for calendar offset `k` days from the
-snapshot, `k % 7 == 1` is Friday and `k % 7 == 2` is Saturday. Offsets 0..89 contain 26
-Fri/Sat dates and 64 Sun-Thu dates.
+files. Snapshot date is `2026-06-25`; calendar "offset" `k` means `snapshot + k days`.
 
-Files: `listings.csv` (22 rows), `calendar.csv` (510 rows), `reviews.csv` (16 rows).
-Extra non-required columns (`name`, `adjusted_price`, `minimum_nights`) are included to prove
+Files: `listings.csv` (22 rows), `calendar.csv` (420 rows), `reviews.csv` (16 rows).
+Extra non-required columns (`name`, `minimum_nights`, `maximum_nights`) are included to prove
 extra columns are tolerated. Plain CSV is used so the files are reviewable; gzip loading is
 tested separately by compressing them in a temp dir.
 
@@ -31,21 +29,23 @@ Reporting thresholds (counts are **listings**, valid price or not):
 * property type: Entire rental unit (1-5, 11-15) = **10** (eligible), Entire home (6-10, 16-19) = **9** (not eligible), Private room in home (20-22) = 3. Deliberately crosses the neighbourhood groups so the two thresholds are tested independently.
 * room_type: Entire home/apt, Private room (3, 12, 20, 21), Shared room (22).
 
-## Calendar (only listings 1-6 have calendar rows)
+## Calendar (listings 1, 2, 3, 4, 6 and unmatched ID 9999 have rows)
+
+Schema matches the real 2026-06-25 file: `listing_id,date,available,minimum_nights,maximum_nights`
+(no price field; `minimum_nights`/`maximum_nights` are ignored).
 
 | listing | rows | what it tests | expected |
 |---|---|---|---|
-| 1 | offsets -1..90 (92) | rows at -1 and +90 are **outside** both windows; offsets 0 and 89 inside. Weekday $100, Fri/Sat $150, one extreme `$5,000` Sunday quote (kept). `available='f'` on offsets 0-14 | 30d: obs 30, cov 1.0, avail 0.5, median 100, IQR 50. 90d: obs 90, avail 75/90, median 100. Weekend median 150, weekday median 100 -> abs 50, pct 0.5 (counts 26 / 64) |
-| 2 | 24 dates in days 0-29 + 48 in days 30-89 | exactly 80% in both windows | 30d obs 24, 90d obs 72, both qualify; price 200 constant, IQR 0, avail 1.0 |
-| 3 | 23 + 48 | one date short in both windows | 30d obs 23, 90d obs 71 -> all window metrics NA (not 0), weekend premium NA though group counts are large |
-| 4 | 90 dates, valid price only on exactly 8 Fri/Sat + 20 Sun-Thu dates; others blank / `$0.00` / `not a price` / `$-5.00`; all `available='f'` | exact minimum counts; prices count **regardless of availability**; invalid prices are not observations | weekend 120, weekday 100 -> abs 20, pct 0.2; counts 8 / 20; availability 0.0 (valid zero, not NA) |
-| 5 | as 4 but 7 weekend | | weekend premium NA (counts 7 / 20) but 90d median still computed |
-| 6 | as 4 but 19 weekday; all `available='t'` except two rows (offsets 0, 1) with invalid `available='x'` | **coverage vs availability denominator**: a row with a valid date but invalid status still counts as an *observed date* for coverage, but is excluded from both numerator and denominator of the availability rate | premium NA (8 / 19); observed days 30 / 90 (coverage 1.0); availability rate 28/28 = 1.0 (30d) and 88/88 = 1.0 (90d) - **not** 28/30 or 88/90 |
-| 7-22 | no calendar rows | no coverage | `calendar_has_data` False; all window metrics NA |
+| 1 | offsets -1..90 (92) | rows at -1 and +90 are **outside** both windows; offsets 0 and 89 inside. `available='f'` on offsets 0-14 | 30d: observed 30, coverage 1.0, availability 0.5. 90d: observed 90, availability 75/90 |
+| 2 | 24 dates in days 0-29 + 48 in days 30-89, all `t` | exactly 80% in both windows | 30d observed 24, 90d observed 72, both qualify; availability 1.0 |
+| 3 | 23 + 48 | one date short in both windows | 30d observed 23, 90d observed 71 -> availability **NA** (not 0); `calendar_has_data` True |
+| 4 | 90 dates, all `f` | zero availability is a real value | availability 0.0 in both windows (not NA) |
+| 6 | 90 dates: offsets 0-1 invalid `available='x'`, offsets 2-14 `f` (13), the rest `t` | **coverage vs availability denominator**: a valid date with an invalid status is an *observed date* for coverage but is excluded from both numerator and denominator | observed 30 / 90 (coverage 1.0); availability 15/28 (30d) and 75/88 (90d) - **not** 15/30 or 75/90 |
+| 5, 7-22 | no calendar rows | no coverage | `calendar_has_data` False; observed days 0; availability NA |
 | 9999 | 5 rows | calendar ID not in listings | counted as unmatched; never adds a row |
 
 Calendar `listing_id`/`date` pairs are unique in the fixture (duplicate detection is tested with
-in-memory frames).
+in-memory frames and by appending a duplicate row to a gzipped copy in the pipeline tests).
 
 ## Reviews (reference S = 2026-06-25)
 
@@ -61,6 +61,7 @@ in-memory frames).
 
 ## Row-count facts used by tests
 
-22 listings in -> 22 rows out. 1 calendar ID and 1 review ID unmatched. 6 distinct listing IDs
-with calendar rows that match listings; 5 listings with review rows (1, 2, 3, 5, 6) of which 4
-(1, 2, 5, 6) have a review at or before the snapshot.
+22 listings in -> 22 rows out. 1 calendar ID and 1 review ID unmatched. 5 listings with calendar
+rows that match listings (1, 2, 3, 4, 6), 4 of which pass the 30- and 90-day coverage gates
+(1, 2, 4, 6). 5 listings with review rows (1, 2, 3, 5, 6) of which 4 (1, 2, 5, 6) have a review
+at or before the snapshot.

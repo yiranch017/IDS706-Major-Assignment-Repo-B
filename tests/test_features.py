@@ -1,7 +1,6 @@
 """Listing, calendar and review features, windows, thresholds and the final join (src/features.py)."""
 from datetime import timedelta
 
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -112,13 +111,12 @@ def test_listing_features_keep_required_columns(listing_feats):
 
 
 # ===================================================== calendar aggregation
-def cal_frame(listing_id, offsets, price=100.0, available=True):
+def cal_frame(listing_id, offsets, available=True):
     offsets = list(offsets)
     return pd.DataFrame({
         "listing_id": pd.array([listing_id] * len(offsets), dtype="Int64"),
         "date": [day(o) for o in offsets],
         "available": pd.array([available] * len(offsets), dtype="boolean"),
-        "price": [price] * len(offsets),
     })
 
 
@@ -130,7 +128,11 @@ def cal_feats(raw_dir):
 
 def test_calendar_aggregation_is_unique_per_listing(cal_feats):
     assert cal_feats.index.is_unique
-    assert set(cal_feats.index) == {1, 2, 3, 4, 5, 6, 9999}
+    assert set(cal_feats.index) == {1, 2, 3, 4, 6, 9999}
+
+
+def test_calendar_output_has_no_price_features(cal_feats):
+    assert not [c for c in cal_feats.columns if "price" in c or "weekend" in c or "weekday" in c]
 
 
 def test_calendar_listing_with_full_coverage_and_known_values(cal_feats):
@@ -140,12 +142,6 @@ def test_calendar_listing_with_full_coverage_and_known_values(cal_feats):
     assert r.calendar_coverage_rate_30 == 1.0 and r.calendar_coverage_rate_90 == 1.0
     assert r.availability_rate_30d == pytest.approx(0.5)
     assert r.availability_rate_90d == pytest.approx(75 / 90)
-    assert r.calendar_median_price_30d == 100 and r.calendar_median_price_90d == 100
-    assert r.calendar_price_iqr_30d == 50 and r.calendar_price_iqr_90d == 50   # $5,000 quote kept, IQR robust
-    assert (r.weekend_valid_price_count_90d, r.weekday_valid_price_count_90d) == (26, 64)
-    assert r.weekend_median_price_90d == 150 and r.weekday_median_price_90d == 100
-    assert r.weekend_premium_abs_90d == pytest.approx(50)
-    assert r.weekend_premium_pct_90d == pytest.approx(0.5)
     assert bool(r.calendar_has_data)
 
 
@@ -154,43 +150,26 @@ def test_calendar_exactly_80_percent_qualifies_in_both_windows(cal_feats):
     assert (r.calendar_observed_days_30, r.calendar_observed_days_90) == (24, 72)
     assert r.calendar_coverage_rate_30 == pytest.approx(0.8)
     assert r.availability_rate_30d == 1.0 and r.availability_rate_90d == 1.0
-    assert r.calendar_median_price_30d == 200 and r.calendar_price_iqr_90d == 0
 
 
 def test_calendar_one_date_below_80_percent_is_na_not_zero(cal_feats):
     r = cal_feats.loc[3]
     assert (r.calendar_observed_days_30, r.calendar_observed_days_90) == (23, 71)
-    for col in ("availability_rate_30d", "availability_rate_90d", "calendar_median_price_30d",
-                "calendar_median_price_90d", "calendar_price_iqr_30d", "calendar_price_iqr_90d",
-                "weekend_premium_abs_90d", "weekend_premium_pct_90d"):
-        assert pd.isna(r[col]), col
+    assert pd.isna(r.availability_rate_30d) and pd.isna(r.availability_rate_90d)
     assert bool(r.calendar_has_data)          # has calendar rows, just not enough of them
 
 
-def test_calendar_prices_count_regardless_of_availability_and_invalid_prices_are_not_observations(cal_feats):
-    r = cal_feats.loc[4]                       # every date unavailable; only 28 of 90 prices valid
-    assert r.calendar_observed_days_90 == 90   # coverage counts dates, not valid prices
-    assert r.calendar_valid_price_days_90 == 28 and r.calendar_valid_price_days_30 == 28
-    assert r.availability_rate_90d == 0.0      # a genuine zero, not NA
-    assert r.calendar_median_price_90d == 100
-    assert (r.weekend_valid_price_count_90d, r.weekday_valid_price_count_90d) == (8, 20)
-    assert r.weekend_premium_abs_90d == pytest.approx(20) and r.weekend_premium_pct_90d == pytest.approx(0.2)
-
-
-@pytest.mark.parametrize("listing, wk, wd", [(5, 7, 20), (6, 8, 19)])
-def test_weekend_premium_na_when_group_below_minimum_but_other_metrics_remain(cal_feats, listing, wk, wd):
-    r = cal_feats.loc[listing]
-    assert (r.weekend_valid_price_count_90d, r.weekday_valid_price_count_90d) == (wk, wd)
-    assert pd.isna(r.weekend_premium_abs_90d) and pd.isna(r.weekend_premium_pct_90d)
-    assert pd.notna(r.calendar_median_price_90d)
+def test_zero_availability_is_a_real_value_not_na(cal_feats):
+    r = cal_feats.loc[4]                       # every date unavailable, full coverage
+    assert r.availability_rate_30d == 0.0 and r.availability_rate_90d == 0.0
 
 
 def test_calendar_date_coverage_is_separate_from_availability_denominator(cal_feats):
-    r = cal_feats.loc[6]                      # two rows: valid date, invalid available status ('x')
+    r = cal_feats.loc[6]   # offsets 0,1 invalid status; 2-14 unavailable (13); the rest available
     assert r.calendar_observed_days_30 == 30 and r.calendar_observed_days_90 == 90   # still observed dates
     assert r.calendar_coverage_rate_30 == 1.0
-    assert r.availability_rate_30d == pytest.approx(1.0)      # 28 / 28, not 28 / 30
-    assert r.availability_rate_90d == pytest.approx(1.0)      # 88 / 88, not 88 / 90
+    assert r.availability_rate_30d == pytest.approx(15 / 28)   # not 15/30
+    assert r.availability_rate_90d == pytest.approx(75 / 88)   # not 75/90
 
 
 def test_availability_denominator_unit():
@@ -199,7 +178,7 @@ def test_availability_denominator_unit():
     df["available"] = pd.array([True] * 10 + [False] * 10 + [pd.NA] * 10, dtype="boolean")
     r = aggregate_calendar(df).set_index("listing_id").loc[1]
     assert r.calendar_observed_days_30 == 30 and r.calendar_coverage_rate_30 == 1.0
-    assert r.availability_rate_30d == pytest.approx(10 / 20)      # not 10/30, not 10/(10+20)
+    assert r.availability_rate_30d == pytest.approx(10 / 20)      # not 10/30, not 10/(10+20+10)
 
 
 def test_all_invalid_availability_gives_na_rate_but_keeps_coverage():
@@ -209,72 +188,25 @@ def test_all_invalid_availability_gives_na_rate_but_keeps_coverage():
     assert r.calendar_observed_days_30 == 30 and pd.isna(r.availability_rate_30d)
 
 
-@pytest.mark.parametrize("n, offsets_ok", [(30, 24), (90, 72)])
-def test_calendar_coverage_boundaries_via_unit_frames(n, offsets_ok):
-    ok = aggregate_calendar(cal_frame(1, range(offsets_ok))).set_index("listing_id").loc[1]
-    short = aggregate_calendar(cal_frame(1, range(offsets_ok - 1))).set_index("listing_id").loc[1]
-    col = f"calendar_median_price_{n}d"
-    if n == 30:
-        assert ok[col] == 100 and pd.isna(short[col])
-    else:
-        # 72 dates inside 90 and 71 dates inside 90
-        assert ok[col] == 100 and pd.isna(short[col])
+@pytest.mark.parametrize(
+    "offsets, rate_30_ok, rate_90_ok",
+    [
+        (range(24), True, False),                                  # 24/30 qualifies; 24/90 does not
+        (range(23), False, False),                                 # 23/30 fails
+        (list(range(30)) + list(range(30, 72)), True, True),       # 72/90 qualifies
+        (list(range(30)) + list(range(30, 71)), True, False),      # 71/90 fails
+    ],
+)
+def test_calendar_coverage_boundaries_via_unit_frames(offsets, rate_30_ok, rate_90_ok):
+    r = aggregate_calendar(cal_frame(1, offsets)).set_index("listing_id").loc[1]
+    assert pd.notna(r.availability_rate_30d) is rate_30_ok
+    assert pd.notna(r.availability_rate_90d) is rate_90_ok
 
 
 def test_calendar_dates_outside_windows_do_not_count():
     r = aggregate_calendar(cal_frame(1, [-5, -1, 90, 120])).set_index("listing_id").loc[1]
     assert r.calendar_observed_days_30 == 0 and r.calendar_observed_days_90 == 0
     assert bool(r.calendar_has_data) and pd.isna(r.availability_rate_90d)
-
-
-def test_calendar_valid_price_required_even_with_coverage():
-    df = cal_frame(1, range(90), price=np.nan)
-    r = aggregate_calendar(df).set_index("listing_id").loc[1]
-    assert r.calendar_observed_days_90 == 90 and r.calendar_valid_price_days_90 == 0
-    assert pd.isna(r.calendar_median_price_90d) and pd.isna(r.calendar_price_iqr_90d)
-    assert r.availability_rate_90d == 1.0
-
-
-def weekend_frame(n_weekend, n_weekday, n_dates=90):
-    """Valid prices on exactly n_weekend Fri/Sat and n_weekday Sun-Thu dates among n_dates dates."""
-    offsets = list(range(n_dates))
-    wk = [o for o in offsets if day(o).dayofweek in (4, 5)][:n_weekend]
-    wd = [o for o in offsets if day(o).dayofweek not in (4, 5)][:n_weekday]
-    df = cal_frame(1, offsets, price=np.nan)
-    price = {**{o: 130.0 for o in wk}, **{o: 100.0 for o in wd}}
-    df["price"] = [price.get(o, np.nan) for o in offsets]
-    return df
-
-
-@pytest.mark.parametrize(
-    "n_wknd, n_wkdy, n_dates, calculated",
-    [
-        (8, 20, 90, True),      # exactly the minimums, full coverage
-        (7, 20, 90, False),     # one weekend price short
-        (8, 19, 90, False),     # one weekday price short
-        (20, 40, 90, True),
-        (8, 20, 71, False),     # 71/90 coverage fails the gate regardless of group counts
-        (8, 20, 72, True),      # 72/90 passes
-    ],
-)
-def test_weekend_premium_thresholds(n_wknd, n_wkdy, n_dates, calculated):
-    r = aggregate_calendar(weekend_frame(n_wknd, n_wkdy, n_dates)).set_index("listing_id").loc[1]
-    if calculated:
-        assert r.weekend_premium_abs_90d == pytest.approx(30.0)
-        assert r.weekend_premium_pct_90d == pytest.approx(0.3)      # (130 - 100) / 100
-    else:
-        assert pd.isna(r.weekend_premium_abs_90d) and pd.isna(r.weekend_premium_pct_90d)
-
-
-def test_weekend_is_friday_and_saturday_only():
-    # S = Thursday 2026-06-25. Only Thursday/Sunday prices differ -> they must be 'weekday'.
-    offsets = list(range(90))
-    df = cal_frame(1, offsets, price=100.0)
-    df.loc[df["date"].dt.dayofweek.isin([4, 5]), "price"] = 200.0
-    df.loc[df["date"].dt.dayofweek.isin([6]), "price"] = 300.0    # Sunday is a weekday here
-    r = aggregate_calendar(df).set_index("listing_id").loc[1]
-    assert r.weekend_median_price_90d == 200 and r.weekday_median_price_90d == 100
-    assert r.weekend_premium_pct_90d == pytest.approx(1.0)
 
 
 def test_calendar_aggregation_multiple_listings_unique_keys():
@@ -379,9 +311,7 @@ def test_join_listing_without_calendar_stays_with_na_features(parts):
     assert not bool(r.calendar_has_data)
     assert r.calendar_observed_days_30 == 0 and r.calendar_observed_days_90 == 0
     assert r.calendar_expected_days_30 == 30 and r.calendar_expected_days_90 == 90
-    for col in ("availability_rate_30d", "availability_rate_90d", "calendar_median_price_30d",
-                "calendar_median_price_90d", "calendar_price_iqr_30d", "calendar_price_iqr_90d",
-                "weekend_premium_pct_90d", "weekend_premium_abs_90d"):
+    for col in ("availability_rate_30d", "availability_rate_90d"):
         assert pd.isna(r[col]), col
 
 

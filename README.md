@@ -13,14 +13,18 @@ and host portfolio structure relate to one another in the Asheville Airbnb marke
 
 1. **RQ1 – Price structure:** how does listing price differ by room type, property type,
    neighborhood and number of listed amenities? (Association only.)
-2. **RQ2 – Dynamic pricing and availability:** how do 30/90-day future quoted prices, their
-   variability, the Friday/Saturday premium and forward availability vary, and how do availability
-   and price relate?
+2. **RQ2 – Listing price and future availability:** how does 30/90-day forward availability vary
+   across listings, and how does it relate to listing price?
 3. **RQ3 – Recent review activity:** can recent review counts/recency serve as rough activity signals?
 4. **RQ4 – Host portfolio:** how do single-listing (`calculated_host_listings_count == 1`) and
    multi-listing (`> 1`) hosts differ descriptively?
 
 Stage 1 (this repository) is descriptive. No model is included.
+
+> **Plan amendment A1 (project-owner-approved):** manual smoke testing showed the real Asheville
+> 2026-06-25 `calendar.csv.gz` has **no price field** (columns: `listing_id`, `date`, `available`,
+> `minimum_nights`, `maximum_nights`). `listing_price` from `listings.csv.gz` is therefore the only
+> price measure, and the calendar is used for forward availability only. See `docs/plan.md` §1A.
 
 ## Data source
 
@@ -58,11 +62,11 @@ the real data.
 | `outputs/tables/data_quality_summary.csv` | `metric,value` diagnostics: row counts, unmatched IDs, coverage, parsing failures, threshold pass counts |
 | `outputs/tables/neighborhood_summary.csv` | Per neighborhood: `n_listings`, `report_eligible` (n ≥ 10), `n_valid_price`, median/Q1/Q3/IQR price |
 | `outputs/tables/room_property_summary.csv` | Same statistics, tidy by `category_variable` (`room_type`, `property_type`); property types eligible at n ≥ 10 |
-| `outputs/tables/host_type_summary.csv` | Single vs multi hosts: counts, medians of price/amenities/availability/future price/reviews, room-type shares |
+| `outputs/tables/host_type_summary.csv` | Single vs multi hosts: counts, medians of listing price/amenities/availability/reviews, room-type shares |
 | `outputs/figures/01_price_by_room_type.png` | Listing price by room type |
 | `outputs/figures/02_amenities_vs_listing_price.png` | Amenity count vs listing price |
 | `outputs/figures/03_neighborhood_price_comparison.png` | Median and IQR for neighborhoods with ≥ 10 listings |
-| `outputs/figures/04_future_availability_vs_price.png` | `availability_rate_90d` vs `calendar_median_price_90d` |
+| `outputs/figures/04_future_availability_vs_price.png` | `availability_rate_90d` vs `listing_price` |
 
 Summary tables and figures may be committed as project evidence; the row-level CSV may not.
 Price statistics use valid prices only; `n_listings` (used for the n ≥ 10 reporting rule) counts all
@@ -74,7 +78,6 @@ listings in the group. Reporting thresholds never remove rows from the analytica
 - Future windows: `snapshot <= date < snapshot + N days`; review windows: `snapshot - N days < date <= snapshot`.
 - Calendar features need ≥ 80 % date coverage in the window (24/30, 72/90) or they are `NA`, never 0.
   Coverage counts observed dates; the availability rate uses only dates with a valid `available` value.
-- Weekend = Friday/Saturday, 90-day window, requires ≥ 8 weekend and ≥ 20 weekday valid prices.
 - Listings with no reviews have 0 review counts but `NA` last-review date / days since last review.
 - `amenity_count` comes from parsing the amenity list (never counting commas); missing or malformed → `NA`.
 - Two review-coverage QA metrics are reported: `prop_listings_with_any_review_row` and
@@ -101,12 +104,12 @@ with the headless `Agg` backend, so no display is needed. To run the tests in th
 
 - **Availability is not occupancy.** Unavailable dates may be bookings or host blocks; call it *forward availability*.
 - **Reviews are an imperfect activity proxy**, not a count of stays or bookings.
-- **Listing price ≠ calendar price.** `listing_price` is a snapshot price; `calendar_median_price_Nd` describes future *quoted* prices (not transaction prices).
+- **Price comes from listings only.** The calendar has no price, so nothing here describes how prices vary by date or weekday. `listing_price` is a quoted snapshot price, not a transaction price.
 - **Single snapshot:** cross-sectional and forward-calendar patterns only; no long-run trends.
 - **Amenity count** treats all amenities equally; more amenities is not "better". Price associations are confounded by size, location, etc.
 - Extreme positive prices may be real and are not deleted; summaries emphasize median and IQR.
 - `calculated_host_listings_count` reflects listings in this scrape, not a host's complete portfolio.
-- The 80 % coverage rule, 8/20 weekend rule and n ≥ 10 reporting thresholds are project rules, not universal truths.
+- The 80 % coverage rule and n ≥ 10 reporting thresholds are project rules, not universal truths.
 - All Stage 1 relationships are descriptive, not causal.
 
 ## Manual smoke test (project owner — to be completed before the Tester stage)

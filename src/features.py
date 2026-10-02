@@ -7,9 +7,6 @@ from src.data import SNAPSHOT_DATE, DataValidationError, parse_amenity_count, pa
 FUTURE_WINDOWS = (30, 90)
 REVIEW_WINDOWS = (30, 90, 180)
 MIN_COVERAGE_PCT = 80            # LOCKED: coverage_rate >= 0.80 (integer math avoids float edge cases)
-WEEKEND_DAYS = (4, 5)            # LOCKED: Friday, Saturday (Monday = 0)
-MIN_WEEKEND_PRICES = 8           # LOCKED
-MIN_WEEKDAY_PRICES = 20          # LOCKED
 
 LISTING_COLUMNS = [
     "id", "host_id", "neighbourhood_cleansed", "property_type", "room_type", "accommodates",
@@ -49,71 +46,29 @@ def build_listing_features(cleaned: pd.DataFrame) -> pd.DataFrame:
 
 # -------------------------------------------------------- calendar features
 def _window_stats(cal: pd.DataFrame, n: int, snapshot) -> pd.DataFrame:
-    """Per-listing statistics for one future window, with the coverage gate applied."""
+    """Per-listing coverage and forward availability for one future window (coverage gate applied)."""
     w = cal[in_future_window(cal["date"], n, snapshot)]
     ids = pd.Index(cal["listing_id"].unique(), name="listing_id")
     out = pd.DataFrame(index=ids)
 
     out[f"calendar_expected_days_{n}"] = n
-    # Coverage counts unique valid dates, regardless of availability status or price validity.
+    # Coverage counts unique valid dates, regardless of the availability status of the row.
     observed = w.groupby("listing_id")["date"].nunique().reindex(ids, fill_value=0)
     out[f"calendar_observed_days_{n}"] = observed
     out[f"calendar_coverage_rate_{n}"] = observed / n
     qualifies = meets_coverage_threshold(observed, n)
 
-    priced = w[w["price"].notna()]
-    out[f"calendar_valid_price_days_{n}"] = priced.groupby("listing_id").size().reindex(ids, fill_value=0)
-
     # Availability uses only rows with a valid status in numerator AND denominator.
     status = w[w["available"].notna()]
-    avail = status.groupby("listing_id")["available"].agg(
-        lambda s: s.astype(bool).sum()
-    ).reindex(ids)
+    avail = status.groupby("listing_id")["available"].agg(lambda s: s.astype(bool).sum()).reindex(ids)
     n_status = status.groupby("listing_id").size().reindex(ids)
-    rate = (avail / n_status).astype("float64")
-    out[f"availability_rate_{n}d"] = rate.where(qualifies)
-
-    prices = priced.groupby("listing_id")["price"]
-    q1, q3 = prices.quantile(0.25).reindex(ids), prices.quantile(0.75).reindex(ids)
-    out[f"calendar_median_price_{n}d"] = prices.median().reindex(ids).where(qualifies)
-    out[f"calendar_price_iqr_{n}d"] = (q3 - q1).where(qualifies)
-    return out
-
-
-def _weekend_features(cal: pd.DataFrame, snapshot, ids, qualifies_90: pd.Series) -> pd.DataFrame:
-    """Friday/Saturday vs Sunday-Thursday median price within the 90-day window."""
-    w = cal[in_future_window(cal["date"], 90, snapshot) & cal["price"].notna()]
-    is_weekend = w["date"].dt.dayofweek.isin(WEEKEND_DAYS)
-    out = pd.DataFrame(index=ids)
-    wk, wd = w[is_weekend].groupby("listing_id")["price"], w[~is_weekend].groupby("listing_id")["price"]
-    out["weekend_valid_price_count_90d"] = wk.size().reindex(ids, fill_value=0)
-    out["weekday_valid_price_count_90d"] = wd.size().reindex(ids, fill_value=0)
-    out["weekend_median_price_90d"] = wk.median().reindex(ids)
-    out["weekday_median_price_90d"] = wd.median().reindex(ids)
-    ok = (
-        qualifies_90
-        & (out["weekend_valid_price_count_90d"] >= MIN_WEEKEND_PRICES)
-        & (out["weekday_valid_price_count_90d"] >= MIN_WEEKDAY_PRICES)
-    )
-    out["weekend_premium_abs_90d"] = (
-        out["weekend_median_price_90d"] - out["weekday_median_price_90d"]
-    ).where(ok)
-    out["weekend_premium_pct_90d"] = (
-        (out["weekend_median_price_90d"] - out["weekday_median_price_90d"]) / out["weekday_median_price_90d"]
-    ).where(ok)
-    # Medians themselves are only reported when the premium is calculable.
-    out["weekend_median_price_90d"] = out["weekend_median_price_90d"].where(ok)
-    out["weekday_median_price_90d"] = out["weekday_median_price_90d"].where(ok)
+    out[f"availability_rate_{n}d"] = (avail / n_status).astype("float64").where(qualifies)
     return out
 
 
 def aggregate_calendar(cal: pd.DataFrame, snapshot=SNAPSHOT_DATE) -> pd.DataFrame:
     """Many calendar rows per listing -> exactly one row per listing_id."""
-    parts = [_window_stats(cal, n, snapshot) for n in FUTURE_WINDOWS]
-    out = pd.concat(parts, axis=1)
-    ids = out.index
-    qualifies_90 = meets_coverage_threshold(out["calendar_observed_days_90"], 90)
-    out = pd.concat([out, _weekend_features(cal, snapshot, ids, qualifies_90)], axis=1)
+    out = pd.concat([_window_stats(cal, n, snapshot) for n in FUTURE_WINDOWS], axis=1)
     out["calendar_has_data"] = True            # listing appears in the calendar at all
     out = out.reset_index()
     out["listing_id"] = out["listing_id"].astype("Int64")
@@ -161,11 +116,8 @@ def join_features(listings: pd.DataFrame, calendar_feats: pd.DataFrame, review_f
     out["calendar_has_data"] = out["calendar_has_data"].fillna(False).astype(bool)
     for n in FUTURE_WINDOWS:
         out[f"calendar_expected_days_{n}"] = n
-        for col in (f"calendar_observed_days_{n}", f"calendar_valid_price_days_{n}"):
-            out[col] = out[col].fillna(0).astype("Int64")
+        out[f"calendar_observed_days_{n}"] = out[f"calendar_observed_days_{n}"].fillna(0).astype("Int64")
         out[f"calendar_coverage_rate_{n}"] = out[f"calendar_coverage_rate_{n}"].fillna(0.0)
-    for col in ("weekend_valid_price_count_90d", "weekday_valid_price_count_90d"):
-        out[col] = out[col].fillna(0).astype("Int64")
 
     for col in ("has_any_review_row", "has_review_on_or_before_snapshot"):
         out[col] = out[col].fillna(False).astype(bool)

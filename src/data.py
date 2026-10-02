@@ -19,7 +19,8 @@ REQUIRED_LISTING_COLUMNS = [
     "id", "host_id", "neighbourhood_cleansed", "property_type", "room_type", "accommodates",
     "bedrooms", "beds", "price", "amenities", "calculated_host_listings_count",
 ]
-REQUIRED_CALENDAR_COLUMNS = ["listing_id", "date", "available", "price"]
+# The real 2026-06-25 calendar has no price field (Amendment A1): availability only.
+REQUIRED_CALENDAR_COLUMNS = ["listing_id", "date", "available"]
 REQUIRED_REVIEW_COLUMNS = ["listing_id", "date"]
 
 
@@ -155,9 +156,7 @@ def clean_calendar(raw: pd.DataFrame):
     df["date"] = pd.to_datetime(raw["date"], format="%Y-%m-%d", errors="coerce")
     status = raw["available"].astype("string").str.strip().str.lower()
     df["available"] = status.map({"t": True, "f": False}).astype("boolean")   # anything else -> <NA>
-    df["price"] = parse_price(raw["price"])
 
-    price_blank = _blank(raw["price"])
     dup = df.dropna(subset=["listing_id", "date"]).duplicated(["listing_id", "date"], keep=False)
     if dup.any():
         n_extra = int(df.dropna(subset=["listing_id", "date"]).duplicated(["listing_id", "date"]).sum())
@@ -171,8 +170,6 @@ def clean_calendar(raw: pd.DataFrame):
         "calendar_rows_missing_listing_id": int(df["listing_id"].isna().sum()),
         "calendar_rows_invalid_date": int(df["date"].isna().sum()),
         "calendar_invalid_availability_rows": int(df["available"].isna().sum()),
-        "calendar_price_missing_rows": int(price_blank.sum()),
-        "calendar_price_invalid_rows": int((df["price"].isna() & ~price_blank).sum()),
     }
     return df.dropna(subset=["listing_id"]).reset_index(drop=True), diag
 

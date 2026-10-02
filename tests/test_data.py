@@ -115,14 +115,14 @@ def test_loaders_read_gzipped_fixtures_and_tolerate_extra_columns(raw_dir):
     listings = load_listings(raw_dir / "listings.csv.gz")
     calendar = load_calendar(raw_dir / "calendar.csv.gz")
     reviews = load_reviews(raw_dir / "reviews.csv")
-    assert len(listings) == 22 and len(calendar) == 510 and len(reviews) == 16
+    assert len(listings) == 22 and len(calendar) == 420 and len(reviews) == 16
 
 
 @pytest.mark.parametrize(
     "loader, header, missing",
     [
         (load_listings, "id,host_id,price", "neighbourhood_cleansed"),
-        (load_calendar, "listing_id,date,price", "available"),
+        (load_calendar, "listing_id,date,minimum_nights", "available"),
         (load_reviews, "id,reviewer", "listing_id"),
     ],
 )
@@ -168,34 +168,31 @@ def test_clean_listings_drops_and_counts_missing_ids():
 
 def test_clean_calendar_fixture_diagnostics(raw_dir):
     cal, diag = clean_calendar(load_calendar(raw_dir / "calendar.csv.gz"))
-    assert diag["raw_calendar_rows"] == 510
+    assert diag["raw_calendar_rows"] == 420
     assert diag["calendar_rows_invalid_date"] == 0
     assert diag["calendar_invalid_availability_rows"] == 2          # listing 6, two 'x' rows
-    assert diag["calendar_price_missing_rows"] == 48                 # blank prices (listings 4-6)
-    assert diag["calendar_price_invalid_rows"] == 140                # $0.00 / text / negative
+    assert "price" not in cal.columns                                # real calendar has no price field
     assert str(cal["listing_id"].dtype) == "Int64"
     assert pd.api.types.is_datetime64_any_dtype(cal["date"])
 
 
-def test_clean_calendar_availability_and_price_columns():
+def test_clean_calendar_availability_parsing():
     raw = pd.DataFrame({
         "listing_id": ["1"] * 5,
-        "date": ["2026-06-25"] * 0 + ["2026-06-25", "2026-06-26", "2026-06-27", "2026-06-28", "2026-06-29"],
+        "date": ["2026-06-25", "2026-06-26", "2026-06-27", "2026-06-28", "2026-06-29"],
         "available": ["t", "f", "x", "", "T"],
-        "price": ["$10.00", "$0.00", "abc", "", "$5,000.00"],
     })
     cal, diag = clean_calendar(raw)
     assert cal["available"].tolist()[:2] == [True, False]
     assert cal["available"].iloc[2:4].isna().all()          # invalid / blank status stays NA
     assert diag["calendar_invalid_availability_rows"] == 2
-    assert cal["price"].iloc[0] == 10.0 and cal["price"].iloc[4] == 5000.0
-    assert cal["price"].iloc[1:4].isna().all()
+    assert cal["available"].iloc[4]                          # case-insensitive 't'
 
 
 def test_clean_calendar_duplicate_listing_date_is_reported_not_resolved():
     raw = pd.DataFrame({
         "listing_id": ["1", "1", "2"], "date": ["2026-07-01", "2026-07-01", "2026-07-01"],
-        "available": ["t", "f", "t"], "price": ["$10.00", "$12.00", "$9.00"],
+        "available": ["t", "f", "t"],
     })
     with pytest.raises(DuplicateCalendarKeyError, match="1 duplicate"):
         clean_calendar(raw)
@@ -203,7 +200,7 @@ def test_clean_calendar_duplicate_listing_date_is_reported_not_resolved():
 
 def test_clean_calendar_counts_unparseable_dates_and_keeps_listing_id():
     raw = pd.DataFrame({"listing_id": ["1", "1"], "date": ["2026-07-01", "07/01/xx"],
-                        "available": ["t", "t"], "price": ["$1.00", "$1.00"]})
+                        "available": ["t", "t"]})
     cal, diag = clean_calendar(raw)
     assert diag["calendar_rows_invalid_date"] == 1
     assert cal["date"].isna().sum() == 1 and len(cal) == 2
@@ -230,9 +227,9 @@ def test_compute_join_diagnostics_unmatched_ids(raw_dir):
     rev, _ = clean_reviews(load_reviews(raw_dir / "reviews.csv"))
     diag = compute_join_diagnostics(listings["id"], cal["listing_id"], rev["listing_id"])
     assert diag["unique_listing_ids"] == 22
-    assert diag["unique_calendar_listing_ids"] == 7          # 1-6 and 9999
+    assert diag["unique_calendar_listing_ids"] == 6          # 1, 2, 3, 4, 6 and 9999
     assert diag["unique_review_listing_ids"] == 6            # 1, 2, 3, 5, 6 and 8888
     assert diag["calendar_ids_not_in_listings"] == 1
     assert diag["review_ids_not_in_listings"] == 1
-    assert diag["prop_listings_with_calendar_rows"] == pytest.approx(6 / 22)
+    assert diag["prop_listings_with_calendar_rows"] == pytest.approx(5 / 22)
     assert diag["prop_listings_with_any_review_row"] == pytest.approx(5 / 22)

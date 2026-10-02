@@ -80,7 +80,8 @@ def test_host_type_summary_excludes_missing_host_type(final):
     assert set(summary.index) == {"single", "multi"}
     assert summary["n_listings"].sum() == 19          # 22 listings, 3 with missing host_type
     assert {"median_listing_price", "median_amenity_count", "median_availability_rate_90d",
-            "median_calendar_median_price_90d", "median_reviews_last_90d"} <= set(summary.columns)
+            "median_reviews_last_90d"} <= set(summary.columns)
+    assert not [c for c in summary.columns if "calendar_median_price" in c]
 
 
 # --------------------------------------------------------- end-to-end fixture run
@@ -102,19 +103,24 @@ def test_end_to_end_final_table_row_count_and_keys(stage1):
     assert len(stage1.final) == 22
 
 
+def test_final_table_has_no_calendar_price_features(final):
+    banned = ("calendar_median_price", "calendar_price_iqr", "weekend", "weekday", "valid_price_days")
+    assert not [c for c in final.columns if any(b in c for b in banned)]
+    assert {"listing_price", "availability_rate_30d", "availability_rate_90d"} <= set(final.columns)
+
+
 def test_end_to_end_known_listing_values(final):
     r1 = final.loc[1]
     assert r1.amenity_count == 2 and r1.host_type == "single"
     assert r1.availability_rate_30d == pytest.approx(0.5)
-    assert r1.weekend_premium_pct_90d == pytest.approx(0.5)
     assert (r1.reviews_last_30d, r1.reviews_last_90d, r1.reviews_last_180d) == (3, 5, 7)
     r2 = final.loc[2]
     assert r2.listing_price == 25000.0 and r2.amenity_count == 0 and r2.host_type == "multi"
     assert r2.calendar_coverage_rate_30 == pytest.approx(0.8)
     r3 = final.loc[3]
-    assert pd.isna(r3.availability_rate_90d) and pd.isna(r3.calendar_median_price_90d)
+    assert pd.isna(r3.availability_rate_90d)
     assert r3.reviews_last_180d == 0 and pd.isna(r3.days_since_last_review)
-    assert pd.isna(final.loc[4, "listing_price"]) and final.loc[4, "calendar_median_price_90d"] == 100
+    assert pd.isna(final.loc[4, "listing_price"]) and final.loc[4, "availability_rate_90d"] == 0.0   # real zero
 
 
 def test_end_to_end_data_quality_summary(stage1):
@@ -125,24 +131,24 @@ def test_end_to_end_data_quality_summary(stage1):
         "raw_listing_rows": 22,
         "cleaned_listing_rows": 22,
         "unique_listing_ids": 22,
-        "unique_calendar_listing_ids": 7,
+        "unique_calendar_listing_ids": 6,
         "unique_review_listing_ids": 6,
         "calendar_ids_not_in_listings": 1,
         "review_ids_not_in_listings": 1,
         "listing_price_invalid_or_missing": 4,
         "amenity_parse_failures": 2,
-        "n_listings_passing_calendar_coverage_30d": 5,
-        "n_listings_passing_calendar_coverage_90d": 5,
-        "n_listings_with_weekend_premium": 3,
+        "calendar_invalid_availability_rows": 2,
+        "n_listings_passing_calendar_coverage_30d": 4,
+        "n_listings_passing_calendar_coverage_90d": 4,
     }
     for key, value in expected.items():
         assert m[key] == pytest.approx(value), key
-    assert m["prop_listings_with_calendar_rows"] == pytest.approx(6 / 22)
+    assert m["prop_listings_with_calendar_rows"] == pytest.approx(5 / 22)
     # two distinct review-coverage concepts must both be reported and must differ (listing 3)
     assert m["prop_listings_with_any_review_row"] == pytest.approx(5 / 22)
     assert m["prop_listings_with_review_on_or_before_snapshot"] == pytest.approx(4 / 22)
-    assert m["prop_listings_passing_calendar_coverage_90d"] == pytest.approx(5 / 22)
-    assert m["prop_listings_with_weekend_premium"] == pytest.approx(3 / 22)
+    assert m["prop_listings_passing_calendar_coverage_90d"] == pytest.approx(4 / 22)
+    assert not [k for k in m if "weekend" in k or "calendar_price" in k]
 
 
 def test_end_to_end_neighborhood_and_property_summaries(stage1):
