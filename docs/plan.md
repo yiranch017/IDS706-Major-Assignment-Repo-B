@@ -4,9 +4,9 @@
 
 This file is the implementation contract for Repository B of the IDS706 major assignment.
 
-The project will build a reproducible data-analysis pipeline using the Asheville, North Carolina Inside Airbnb snapshot dated **2026-06-25**. The required Stage 1 deliverable is a tested, containerized pipeline that validates and combines listing, calendar, and review data into a one-row-per-listing analytical table and produces focused descriptive outputs tied to the research questions below.
+The project will build a reproducible data-analysis pipeline using the Asheville, North Carolina Inside Airbnb snapshot dated **2026-06-25**. The required Stage 1 deliverable is a tested, containerized pipeline that validates and combines listing, calendar, and review data into a one-row-per-listing analytical table and produces focused descriptive outputs tied directly to the research questions below.
 
-This plan is intentionally detailed so that a separate Builder agent and a separate Tester agent can implement and verify the project without access to the prior architecture conversation.
+This plan is intentionally detailed enough for a separate Builder agent and a later independent Tester agent to work from it without needing the architecture conversation.
 
 ### Decision provenance
 
@@ -16,7 +16,7 @@ The plan uses three labels:
 - **ARCHITECT IMPLEMENTATION DETAIL:** a concrete implementation rule added to make the specification unambiguous while remaining consistent with the reviewed architecture.
 - **APPROVAL REQUIRED:** a decision that must come back to the project owner before implementation changes.
 
-If real-data inspection reveals that a locked threshold, rule, or assumption creates an unexpected problem, the Builder must report the issue and request approval before changing it.
+If real-data inspection reveals that a locked threshold, rule, or assumption creates an unexpected problem, the Builder must report it before changing the implementation.
 
 ---
 
@@ -27,13 +27,14 @@ The project will study the Asheville Airbnb market by examining how listing char
 The main engineering product is not merely an exploratory notebook. It is a reproducible transformation pipeline that:
 
 1. validates three raw Inside Airbnb sources;
-2. cleans only variables relevant to the research questions;
-3. aggregates calendar and review records from many rows per listing to one row per listing;
-4. joins those features safely to the listing table;
-5. produces a documented analytical dataset;
-6. creates a small set of reproducible descriptive tables and figures;
-7. verifies core data invariants with automated tests; and
-8. runs locally and in Docker without baking raw third-party data into the image.
+2. cleans variables needed for the research questions;
+3. engineers listing-level features;
+4. aggregates calendar and review data from many rows per listing to one row per listing;
+5. safely joins those features to the listing table;
+6. produces a documented analytical dataset;
+7. creates a small set of reproducible descriptive tables and figures;
+8. verifies core data invariants with automated tests; and
+9. runs both locally and in Docker without embedding raw third-party data in the image.
 
 Stage 1 is a complete project on its own. Modeling is conditional and is not required unless separately approved after Stage 1 results are reviewed.
 
@@ -53,7 +54,7 @@ How does listing-level nightly price differ across:
 - listing capacity/size characteristics where useful for interpretation; and
 - number of listed amenities?
 
-The amenities sub-question is specifically:
+The amenities sub-question is:
 
 > Is a greater number of listed amenities associated with a higher listing price?
 
@@ -87,7 +88,12 @@ How do single-listing and multi-listing hosts differ descriptively in relevant l
 - room type; and
 - recent review activity?
 
-For the required comparison, single-listing means calculated_host_listings_count == 1 and multi-listing means calculated_host_listings_count > 1.
+For the required comparison:
+
+~~~text
+single-listing host: calculated_host_listings_count == 1
+multi-listing host:  calculated_host_listings_count > 1
+~~~
 
 ---
 
@@ -97,15 +103,21 @@ For the required comparison, single-listing means calculated_host_listings_count
 
 Use exactly these three Asheville Inside Airbnb files from the **2026-06-25 snapshot**:
 
-1. detailed listings: listings.csv.gz
-2. detailed calendar: calendar.csv.gz
-3. summary review dates: reviews.csv
+1. detailed listings: `listings.csv.gz`
+2. detailed calendar: `calendar.csv.gz`
+3. summary review dates: `reviews.csv`
 
 Source page:
 
 https://insideairbnb.com/get-the-data/
 
-The project must document the source page, city, exact snapshot date, and expected filenames in the README.
+The README must document:
+
+- source site;
+- city: Asheville, NC;
+- exact snapshot date: 2026-06-25;
+- expected filenames;
+- expected location under `data/raw/`.
 
 ### Fixed temporal reference
 
@@ -115,9 +127,9 @@ Define one project-wide constant:
 SNAPSHOT_DATE = 2026-06-25
 ~~~
 
-All relative date features must be calculated from this fixed date. They must never depend on the date when the pipeline happens to run.
+All relative date features must be calculated from this fixed date.
 
-No use of system "today", current date, or execution timestamp is permitted for analytical window definitions.
+The analytical pipeline must never use the machine's current date, `today()`, or execution timestamp to define review or calendar windows.
 
 ---
 
@@ -126,9 +138,9 @@ No use of system "today", current date, or execution timestamp is permitted for 
 ### Required scope
 
 - Python-based reproducible pipeline
-- listings.csv.gz
-- calendar.csv.gz
-- reviews.csv
+- `listings.csv.gz`
+- `calendar.csv.gz`
+- `reviews.csv`
 - listing-level feature engineering
 - calendar aggregation
 - review-date aggregation
@@ -136,9 +148,10 @@ No use of system "today", current date, or execution timestamp is permitted for 
 - focused descriptive analysis
 - automated tests
 - tiny committed test fixtures
-- Docker image for code and dependencies
+- Docker image containing code and dependencies
 - mounted raw-data and output volumes
 - clear setup/run/test documentation
+- a manual Builder smoke-test stage before independent Tester review
 
 ### Explicitly excluded
 
@@ -147,9 +160,9 @@ No use of system "today", current date, or execution timestamp is permitted for 
 Do not add the following unless a later finding provides a strong reason and the project owner explicitly approves it:
 
 - review-text NLP;
-- detailed reviews.csv.gz for text analysis;
+- detailed reviews text analysis;
 - GeoJSON or spatial analysis;
-- maps requiring spatial joins;
+- spatial joins;
 - Streamlit or another dashboard;
 - database infrastructure;
 - API/service layer;
@@ -160,72 +173,203 @@ Do not add the following unless a later finding provides a strong reason and the
 - automatic IQR-based price outlier deletion;
 - guaranteed modeling.
 
-The purpose is to keep the assignment substantial but realistic.
+The project should remain substantial but realistic for a course assignment.
 
 ---
 
-## 6. Proposed repository structure
+## 6. Required repository/file layout
 
-The Builder should target a structure equivalent to the following. Small naming changes are acceptable only if responsibilities remain clearly separated.
+> **USER-REVIEWED DECISION — LOCKED IN PRINCIPLE**
+
+Keep the implementation simple. Do not overengineer the repository into a large package with many small modules.
+
+The Builder should use the following layout unless a minor naming adjustment is clearly justified:
 
 ~~~text
-.
-├── README.md
-├── docs/
-│   └── plan.md
-├── pyproject.toml
-├── Makefile
-├── Dockerfile
-├── .gitignore
+IDS706-Major-Assignment-Repo-B/
 ├── data/
-│   └── raw/
-│       └── .gitkeep
+│   ├── raw/                 # gitignored real Inside Airbnb files
+│   └── fixtures/            # tiny committed synthetic test datasets
+├── src/
+│   ├── data.py              # loading, validation, cleaning, QA diagnostics
+│   ├── features.py          # listing/calendar/review feature engineering
+│   ├── analysis.py          # summary tables and figures
+│   └── pipeline.py          # Stage 1 orchestration functions
+├── tests/
+│   ├── test_data.py
+│   ├── test_features.py
+│   └── test_pipeline.py
 ├── outputs/
 │   ├── data/
-│   │   └── .gitkeep
 │   ├── tables/
-│   │   └── .gitkeep
 │   └── figures/
-│       └── .gitkeep
-├── src/
-│   └── airbnb_pipeline/
-│       ├── __init__.py
-│       ├── config.py
-│       ├── io.py
-│       ├── validation.py
-│       ├── cleaning.py
-│       ├── features.py
-│       ├── analysis.py
-│       └── pipeline.py
-└── tests/
-    ├── fixtures/
-    │   ├── listings_fixture.csv
-    │   ├── calendar_fixture.csv
-    │   └── reviews_fixture.csv
-    ├── test_validation.py
-    ├── test_cleaning.py
-    ├── test_features.py
-    ├── test_aggregation.py
-    ├── test_outputs.py
-    └── test_pipeline.py
+├── docs/
+│   ├── plan.md
+│   └── transcripts/
+├── main.py                  # single obvious entry point for Stage 1
+├── Dockerfile
+├── .dockerignore
+├── .gitignore
+├── Makefile
+├── requirements.txt
+└── README.md
 ~~~
 
-### Responsibility boundaries
+### File responsibilities
 
-- config.py: fixed dates, thresholds, file names, and project constants.
-- io.py: reading raw sources and writing artifacts.
-- validation.py: schema, key, coverage, and join diagnostics.
-- cleaning.py: type normalization, price parsing, amenities parsing, invalid-value handling.
-- features.py: listing features, calendar aggregation, review aggregation, host classification.
-- analysis.py: required summary tables and figures.
-- pipeline.py: orchestration only; it should call the other modules rather than contain all logic itself.
-- tests/: unit, aggregation, invariant, output, and end-to-end tests.
+#### `main.py`
 
-The Builder may adjust module boundaries if necessary, but must preserve separation between loading, validation, cleaning, feature construction, analysis, and orchestration.
+This is the canonical user-facing entry point.
+
+Running:
+
+~~~bash
+python main.py
+~~~
+
+must execute the full real Stage 1 pipeline using the default raw-data and output locations.
+
+It should orchestrate, conceptually:
+
+~~~text
+validate raw inputs
+clean listing data
+engineer listing features
+aggregate calendar data
+aggregate review data
+join to one row per listing
+run focused descriptive analysis
+save analytical table
+save summary tables
+save figures
+~~~
+
+`main.py` should stay thin and call functions from `src/`; it should not contain the whole implementation itself.
+
+#### `src/data.py`
+
+Responsible for:
+
+- raw file loading;
+- required-column validation;
+- key normalization;
+- date parsing;
+- price parsing;
+- amenity parsing;
+- raw/cleaned row diagnostics;
+- join-ID diagnostics;
+- variable-specific cleaning rules.
+
+#### `src/features.py`
+
+Responsible for:
+
+- listing feature construction;
+- amenity_count;
+- host_type;
+- fixed review-window features;
+- calendar coverage features;
+- calendar availability features;
+- calendar pricing features;
+- weekend premium;
+- calendar aggregation;
+- review aggregation.
+
+#### `src/analysis.py`
+
+Responsible for:
+
+- required summary CSVs;
+- required figures;
+- report-threshold filtering;
+- descriptive statistics used in Stage 1.
+
+Figures must be **saved to `outputs/figures/`**.
+
+Do not rely on interactive `plt.show()` as the delivery mechanism. The analysis must work in a headless Docker container.
+
+#### `src/pipeline.py`
+
+Responsible for connecting the major stages in the correct order and returning/writing final artifacts.
+
+It should not duplicate transformation logic from the other modules.
+
+#### `data/fixtures/`
+
+Contains tiny committed synthetic datasets used by automated tests.
+
+Fixtures should be designed to exercise boundary conditions and known expected outputs.
+
+#### `docs/transcripts/`
+
+Reserved for assignment-relevant Builder/Tester workflow transcripts or documentation if needed later.
 
 ---
 
-## 7. Data acquisition and version-control strategy
+## 7. Canonical commands the Builder must support
+
+> **USER-REVIEWED DECISION — LOCKED**
+
+The project must have one obvious command for the full Stage 1 pipeline:
+
+~~~bash
+python main.py
+~~~
+
+The README must document commands that actually work.
+
+### Install dependencies
+
+~~~bash
+python -m pip install -r requirements.txt
+~~~
+
+### Run the full Stage 1 pipeline
+
+~~~bash
+python main.py
+~~~
+
+### Run tests
+
+~~~bash
+python -m pytest -v
+~~~
+
+### Build Docker image
+
+~~~bash
+docker build -t asheville-airbnb-analysis .
+~~~
+
+### Run real Stage 1 pipeline in Docker
+
+~~~bash
+docker run --rm \
+  -v "$(pwd)/data/raw:/app/data/raw:ro" \
+  -v "$(pwd)/outputs:/app/outputs" \
+  asheville-airbnb-analysis
+~~~
+
+The Docker container's normal/default command must run the **real Stage 1 pipeline**, not a trivial demonstration, placeholder, shell command, or toy example.
+
+### Makefile convenience commands
+
+The Builder may provide convenience wrappers such as:
+
+~~~bash
+make install
+make run
+make test
+make docker-build
+make docker-run
+~~~
+
+These should invoke the same canonical commands rather than duplicate implementation logic.
+
+---
+
+## 8. Data acquisition and version-control strategy
 
 > **USER-REVIEWED DECISION — LOCKED**
 
@@ -247,13 +391,12 @@ data/raw/
 
 The pipeline should expect these exact filenames by default.
 
-### .gitignore
+### .gitignore expectations
 
 At minimum, ignore:
 
 ~~~text
 data/raw/*
-!data/raw/.gitkeep
 outputs/data/asheville_listing_features.csv
 Python caches
 pytest caches
@@ -261,25 +404,46 @@ local virtual environments
 OS/editor temporary files
 ~~~
 
+If empty directories need to be retained in Git, use a placeholder such as `.gitkeep`.
+
+### .dockerignore expectations
+
+At minimum, exclude from the Docker build context where appropriate:
+
+~~~text
+data/raw/
+outputs/
+.git/
+.venv/
+__pycache__/
+.pytest_cache/
+~~~
+
+The Docker image should not contain the real raw dataset or stale generated artifacts from the host.
+
 ### Derived outputs
 
 **ARCHITECT IMPLEMENTATION DETAIL**
 
-The full one-row-per-listing analytical table is a required generated artifact but should not be committed by default, because it is still row-level derivative data from the source.
+The full one-row-per-listing analytical table is a required generated artifact but should not be committed by default because it remains row-level derivative data from the source.
 
-Aggregate summary tables and figures may be versioned if useful for the course submission because they do not reproduce the raw source table row-for-row. Regardless of whether they are committed, the pipeline must regenerate them deterministically.
+Aggregate summary tables and figures may be committed if useful for course submission, but the pipeline must regenerate them deterministically.
 
 ### Test fixtures
 
 > **USER-REVIEWED DECISION — LOCKED**
 
-Commit tiny fixtures under tests/fixtures/.
+Commit tiny synthetic fixtures under:
 
-Prefer synthetic fixtures designed specifically to exercise edge cases rather than copying a meaningful portion of the original raw dataset.
+~~~text
+data/fixtures/
+~~~
+
+Do not use the real full raw datasets in automated unit tests.
 
 ---
 
-## 8. Data grains and join architecture
+## 9. Data grains and join architecture
 
 The raw sources have different grains.
 
@@ -318,7 +482,7 @@ This is a one-to-many relationship from listings to calendar.
 Grain:
 
 ~~~text
-one row = one observed review event/date record
+one row = one review-event/date record
 ~~~
 
 Foreign key:
@@ -329,13 +493,15 @@ listing_id -> listings.id
 
 This is a one-to-many relationship from listings to reviews.
 
-Multiple reviews for the same listing may occur on the same date. Therefore the review table must not be deduplicated merely on (listing_id, date).
+Multiple reviews for the same listing may occur on the same date, so review rows must not be deduplicated merely on `(listing_id, date)`.
 
 ### Safe join rule
 
+> **USER-REVIEWED DECISION — LOCKED**
+
 Never directly join raw calendar rows to raw review rows.
 
-The required order is:
+Required order:
 
 ~~~text
 listings
@@ -347,17 +513,17 @@ listings
    -> LEFT JOIN both aggregated feature tables to listings
 ~~~
 
-This avoids a many-to-many row explosion.
+This prevents a many-to-many row explosion.
 
 The listing table is the authoritative base table for the final analytical dataset.
 
 ---
 
-## 9. Raw-data validation rules
+## 10. Raw-data validation rules
 
 Validation occurs before analytical transformations.
 
-### 9.1 Listings validation
+### 10.1 Listings validation
 
 Required checks:
 
@@ -386,7 +552,7 @@ calculated_host_listings_count
 
 The Builder may retain additional columns for QA, but analysis should remain focused on the research questions.
 
-### 9.2 Calendar validation
+### 10.2 Calendar validation
 
 Minimum required columns:
 
@@ -401,14 +567,14 @@ Required checks:
 
 - dates parse successfully where present;
 - listing_id is normalized to the same key type used for listings.id;
-- each (listing_id, date) should be unique;
+- each `(listing_id, date)` should be unique;
 - price parsing failures are counted;
 - invalid availability values are counted;
-- dates used in future windows are assessed relative to SNAPSHOT_DATE.
+- calendar dates used in future windows are assessed relative to SNAPSHOT_DATE.
 
-**APPROVAL REQUIRED IF ENCOUNTERED:** If duplicate (listing_id, date) rows exist, do not silently deduplicate or average them. Report their number and inspect their pattern before choosing a resolution.
+**APPROVAL REQUIRED IF ENCOUNTERED:** If duplicate `(listing_id, date)` rows exist, do not silently deduplicate or average them. Report the number/pattern before choosing a resolution.
 
-### 9.3 Reviews validation
+### 10.3 Reviews validation
 
 Minimum required columns:
 
@@ -422,9 +588,9 @@ Required checks:
 - review dates parse successfully where present;
 - listing_id is normalized to the listing key type;
 - rows later than SNAPSHOT_DATE are counted and excluded from historical activity features;
-- repeated dates are allowed because multiple reviews can occur on the same date.
+- repeated dates are allowed because multiple reviews can occur on one date.
 
-### 9.4 Cross-table join diagnostics
+### 10.4 Cross-table join diagnostics
 
 > **USER-REVIEWED DECISION — LOCKED**
 
@@ -438,37 +604,49 @@ Compute and report:
 - proportion of listings with any calendar coverage;
 - proportion of listings with at least one review row.
 
-Unmatched calendar/review IDs must not create extra rows in the final table because the final table uses listings as the left side of the join.
+Unmatched calendar/review IDs must not create extra rows in the final table because listings is the left/base table.
 
-These diagnostics must be written into data_quality_summary.csv.
+These diagnostics must appear in `data_quality_summary.csv`.
 
 ---
 
-## 10. Cleaning rules
+## 11. Cleaning rules
 
-### 10.1 General principle
+### 11.1 General principle
 
 > **USER-REVIEWED DECISION — LOCKED**
 
 Do not apply a global missing-value strategy.
 
-Missingness must be handled according to variable meaning. Do not simply drop all incomplete listings and do not globally fill missing values with zero.
+Missingness must be handled according to variable meaning.
 
-### 10.2 ID handling
+Do not simply drop all incomplete listings and do not globally fill missing values with zero.
+
+### 11.2 ID handling
 
 **ARCHITECT IMPLEMENTATION DETAIL**
 
-Normalize listings.id, calendar.listing_id, and reviews.listing_id to a consistent representation before comparison or joins. Do not alter identifier semantics.
+Normalize:
 
-### 10.3 Date handling
+~~~text
+listings.id
+calendar.listing_id
+reviews.listing_id
+~~~
 
-Parse calendar and review dates to date/datetime objects before window filtering.
+to a consistent key representation before comparisons or joins.
 
-Analytical windows must use the exact rules in Section 12.
+Do not alter identifier semantics.
 
-### 10.4 Listing price
+### 11.3 Date handling
 
-Create a cleaned listing-level price field, conceptually:
+Parse calendar and review dates to date/datetime values before window filtering.
+
+Analytical windows must use the exact rules in Section 13.
+
+### 11.4 Listing price
+
+Create a cleaned listing-level analytical price field:
 
 ~~~text
 listing_price
@@ -480,17 +658,17 @@ Rules:
 - convert to numeric;
 - values <= 0 are invalid for price analysis;
 - unparseable values are invalid;
-- statistically extreme but positive, parseable values are not automatically invalid.
+- statistically extreme but positive, parseable values remain valid.
 
 > **USER-REVIEWED DECISION — LOCKED:** Do not remove statistically extreme but plausible positive prices merely because they are IQR or z-score outliers.
 
-**ARCHITECT IMPLEMENTATION DETAIL:** Preserve the listing row when price is invalid. Set the cleaned analytical price to missing and record a validity flag/diagnostic rather than dropping the entire listing solely because price is invalid.
+**ARCHITECT IMPLEMENTATION DETAIL:** Preserve the listing row when price is invalid. Set the cleaned analytical price to missing and expose a validity flag/diagnostic rather than dropping the listing solely because of invalid price.
 
 Descriptive price summaries should emphasize median, quartiles, and IQR.
 
-Any later log transformation, winsorization, trimming, or robust-model choice belongs to the conditional modeling stage and requires explicit review.
+Any later log transformation, winsorization, trimming, or robust-model treatment belongs to the conditional modeling stage and requires review.
 
-### 10.5 Calendar price
+### 11.5 Calendar price
 
 Parse calendar price independently from listing price.
 
@@ -501,9 +679,11 @@ A valid quoted calendar price is:
 
 Invalid calendar prices do not count as valid price observations.
 
-Calendar price metrics are based on valid quoted prices regardless of whether the corresponding date is marked available. This keeps future pricing behavior conceptually separate from availability.
+Calendar price metrics are based on valid quoted prices regardless of whether the corresponding date is marked available.
 
-### 10.6 Amenities
+This keeps future pricing behavior conceptually separate from availability.
+
+### 11.6 Amenities
 
 > **USER-REVIEWED DECISION — LOCKED**
 
@@ -515,18 +695,20 @@ amenity_count
 
 Do not create individual amenity indicators.
 
-The amenities field must be parsed as the serialized list structure. Do not estimate amenity count by counting commas, brackets, or characters.
+The amenities field must be parsed as the serialized list structure.
+
+Do not estimate amenity count by counting commas, brackets, or characters.
 
 Rules:
 
-- successfully parsed empty list -> amenity_count = 0;
-- successfully parsed list -> amenity_count = length of list;
-- true missing value -> amenity_count = NA;
-- malformed/unparseable list -> amenity_count = NA and record a parsing failure diagnostic.
+- successfully parsed empty list -> `amenity_count = 0`;
+- successfully parsed list -> list length;
+- true missing value -> `amenity_count = NA`;
+- malformed/unparseable list -> `amenity_count = NA` and record a parsing-failure diagnostic.
 
-The parser must correctly handle an amenity string that itself contains punctuation or commas.
+The parser must correctly handle amenity strings that themselves contain punctuation or commas.
 
-### 10.7 Host listing count
+### 11.7 Host listing count
 
 Retain:
 
@@ -536,18 +718,18 @@ calculated_host_listings_count
 
 as numeric.
 
-Derive:
+Derive only:
 
 ~~~text
 host_type = "single" when calculated_host_listings_count == 1
-host_type = "multi" when calculated_host_listings_count > 1
+host_type = "multi"  when calculated_host_listings_count > 1
 ~~~
 
-Missing or invalid host counts should not be forced into a category.
+Missing or invalid host counts must not be forced into a category.
 
 Do not create additional host-size bins without approval.
 
-### 10.8 Neighborhood
+### 11.8 Neighborhood
 
 Use:
 
@@ -559,19 +741,19 @@ as the main location variable.
 
 Do not use GeoJSON or spatial joins in Stage 1.
 
-### 10.9 Property/room type
+### 11.9 Property type and room type
 
-Retain original property_type values.
+Retain original `property_type` values.
 
-Use room_type as the primary compact listing-type category.
+Use `room_type` as the primary compact listing-type category.
 
 Do not combine rare property-type labels into arbitrary larger categories without approval.
 
 ---
 
-## 11. Variable-specific missingness rules
+## 12. Variable-specific missingness rules
 
-### 11.1 No review rows
+### 12.1 Listing with no review rows
 
 If a listing exists in listings but has no review rows at or before SNAPSHOT_DATE:
 
@@ -585,7 +767,7 @@ days_since_last_review = NA
 
 Reason: zero observed recent reviews is meaningful, but there is no last-review date from which recency can be calculated.
 
-### 11.2 Insufficient calendar coverage
+### 12.2 Insufficient calendar coverage
 
 If a listing fails the required calendar-coverage threshold for a window:
 
@@ -598,20 +780,21 @@ Do not substitute zero.
 
 Zero availability means observed calendar records showed zero available dates. Missing means the metric could not be calculated reliably.
 
-### 11.3 Missing/malformed amenities
-
-As defined above:
+### 12.3 Missing/malformed amenities
 
 - parsed empty list -> 0;
-- missing or malformed -> NA.
+- missing -> NA;
+- malformed/unparseable -> NA plus QA diagnostic.
 
-### 11.4 Missing category fields
+### 12.4 Missing category fields
 
-Do not invent categories such as "Other" or "Unknown" unless explicitly required for display and clearly labeled. Raw category missingness should remain observable.
+Do not invent categories such as "Other" or "Unknown" unless explicitly needed for presentation and clearly labeled.
+
+Raw category missingness should remain observable.
 
 ---
 
-## 12. Exact temporal windows
+## 13. Exact temporal windows
 
 > **USER-REVIEWED DECISION — LOCKED**
 
@@ -621,7 +804,7 @@ All windows are deterministic relative to:
 SNAPSHOT_DATE = 2026-06-25
 ~~~
 
-### 12.1 Future calendar windows
+### 13.1 Future calendar windows
 
 Use half-open intervals.
 
@@ -631,7 +814,7 @@ Use half-open intervals.
 SNAPSHOT_DATE <= calendar_date < SNAPSHOT_DATE + 30 days
 ~~~
 
-Expected number of dates:
+Expected dates:
 
 ~~~text
 30
@@ -643,7 +826,7 @@ Expected number of dates:
 SNAPSHOT_DATE <= calendar_date < SNAPSHOT_DATE + 90 days
 ~~~
 
-Expected number of dates:
+Expected dates:
 
 ~~~text
 90
@@ -651,7 +834,7 @@ Expected number of dates:
 
 The start date is included. The upper boundary is excluded.
 
-### 12.2 Review lookback windows
+### 13.2 Review lookback windows
 
 30-day review window:
 
@@ -673,11 +856,11 @@ SNAPSHOT_DATE - 180 days < review_date <= SNAPSHOT_DATE
 
 The lower boundary is excluded. SNAPSHOT_DATE is included.
 
-These exact inequalities must be unit-tested at the boundary dates.
+These exact inequalities must be unit-tested.
 
 ---
 
-## 13. Calendar coverage definitions
+## 14. Calendar coverage definitions
 
 > **USER-REVIEWED DECISION — LOCKED**
 
@@ -715,13 +898,13 @@ Therefore:
 
 Exactly 80% qualifies.
 
-If actual data inspection reveals that this project rule causes an unexpected systematic problem, the Builder must report it before changing the threshold.
+If real-data inspection shows that this rule creates an unexpected systematic problem, the Builder must report it before changing the threshold.
 
 ### Availability-rate denominator
 
 **ARCHITECT IMPLEMENTATION DETAIL**
 
-After passing the coverage gate, calculate:
+After passing the coverage gate:
 
 ~~~text
 availability_rate_N =
@@ -730,17 +913,17 @@ number of observed window dates marked available
 number of observed window dates with valid availability status
 ~~~
 
-Do not use expected_dates as the denominator because doing so would implicitly treat missing calendar dates as unavailable.
+Do not use expected_dates as the denominator because that would implicitly treat missing dates as unavailable.
 
-If availability values themselves are unexpectedly missing or malformed at a material rate, report this before modifying the rule.
+If availability status itself is unexpectedly missing or malformed at a material rate, report the problem before changing the rule.
 
 ---
 
-## 14. Calendar-derived feature definitions
+## 15. Calendar-derived feature definitions
 
-### 14.1 Required coverage/QA features
+### 15.1 Coverage/QA features
 
-For both 30 and 90 days:
+Required:
 
 ~~~text
 calendar_expected_days_30
@@ -749,17 +932,12 @@ calendar_coverage_rate_30
 calendar_expected_days_90
 calendar_observed_days_90
 calendar_coverage_rate_90
-~~~
-
-Recommended transparency fields:
-
-~~~text
 calendar_valid_price_days_30
 calendar_valid_price_days_90
 calendar_has_data
 ~~~
 
-### 14.2 Availability
+### 15.2 Availability
 
 For windows passing the 80% coverage rule:
 
@@ -776,9 +954,9 @@ NA
 
 Interpretation must always be "forward availability," not occupancy.
 
-### 14.3 Median future quoted price
+### 15.3 Median future quoted price
 
-For each qualifying window, use all valid positive quoted calendar prices inside the window, regardless of available status.
+For each qualifying window, use all valid positive quoted calendar prices inside the window regardless of available status.
 
 Required:
 
@@ -791,7 +969,7 @@ If coverage is below 80%, return NA.
 
 If there are no valid positive quoted prices despite sufficient date coverage, return NA and expose the valid-price count in QA.
 
-### 14.4 Future price variability
+### 15.4 Future price variability
 
 Use IQR as the primary robust variability measure:
 
@@ -809,11 +987,11 @@ calendar_price_iqr_30d
 calendar_price_iqr_90d
 ~~~
 
-Reason: quoted Airbnb prices may contain legitimate event/holiday extremes; IQR is less sensitive than standard deviation.
+Reason: Airbnb quoted prices may contain legitimate event/holiday extremes, and IQR is less sensitive to them than standard deviation.
 
-Do not delete extreme positive calendar prices merely to reduce IQR.
+Do not delete extreme positive calendar prices simply to reduce variability.
 
-### 14.5 Weekend-price premium
+### 15.5 Weekend-price premium
 
 > **USER-REVIEWED DECISION — LOCKED**
 
@@ -826,7 +1004,7 @@ Saturday
 
 Use the 90-day future window.
 
-The 90-day window must first satisfy the overall 80% calendar coverage requirement.
+The 90-day window must first satisfy the 80% calendar-coverage rule.
 
 Within that window, use valid positive quoted prices regardless of availability status.
 
@@ -840,14 +1018,14 @@ weekday_median_price_90d =
 median(valid Sunday-Thursday quoted prices)
 ~~~
 
-Observation thresholds:
+Minimum valid observations:
 
 ~~~text
-valid weekend prices >= 8
-valid weekday prices >= 20
+weekend prices >= 8
+weekday prices >= 20
 ~~~
 
-If either threshold fails, both premium measures must be NA.
+If either threshold fails, both weekend-premium measures must be NA.
 
 Absolute premium:
 
@@ -867,11 +1045,9 @@ weekend_premium_pct_90d =
 weekday_median_price_90d
 ~~~
 
-Because all valid prices are positive, the denominator should be positive. If it is not, treat the percentage premium as invalid/missing and report the anomaly.
+Keep both measures in the analytical table.
 
-Keep both absolute and percentage forms in the analytical table.
-
-Use the **percentage premium** as the primary form for descriptive reporting because it is comparable across cheap and expensive listings.
+Use the percentage form as the primary descriptive measure.
 
 Required transparency counts:
 
@@ -880,13 +1056,13 @@ weekend_valid_price_count_90d
 weekday_valid_price_count_90d
 ~~~
 
-The Builder must not silently change the 8/20 observation thresholds.
+The Builder must not silently change the 8/20 thresholds.
 
 ---
 
-## 15. Review-derived feature definitions
+## 16. Review-derived feature definitions
 
-Aggregate review rows by listing_id.
+Aggregate review rows by `listing_id`.
 
 Required features:
 
@@ -911,11 +1087,9 @@ days_since_last_review =
 SNAPSHOT_DATE - last_review_date
 ~~~
 
-Do not create an arbitrary weighted "activity score" in Stage 1.
+Do not create an arbitrary weighted activity score in Stage 1.
 
-Counts and recency should remain directly interpretable.
-
-Expected invariant:
+Required invariant:
 
 ~~~text
 reviews_last_30d <= reviews_last_90d <= reviews_last_180d
@@ -923,11 +1097,11 @@ reviews_last_30d <= reviews_last_90d <= reviews_last_180d
 
 ---
 
-## 16. Required listing-derived analytical fields
+## 17. Required listing-derived analytical fields
 
-The final analytical table must contain, at minimum, enough source and engineered variables to support all research questions.
+The final analytical table must contain enough listing-side and engineered variables to support all four research questions.
 
-Required listing-side fields:
+At minimum:
 
 ~~~text
 id
@@ -945,11 +1119,11 @@ calculated_host_listings_count
 host_type
 ~~~
 
-The Builder may retain additional QA/source fields if they help validation, but should not expand the descriptive scope without a research reason.
+The Builder may retain additional QA/source fields if useful, but should not broaden the analytical scope without a research reason.
 
 ---
 
-## 17. Aggregation and final join
+## 18. Aggregation and final join
 
 ### Calendar aggregation
 
@@ -965,7 +1139,7 @@ Output:
 one row per listing_id
 ~~~
 
-The output must be unique on listing_id before joining.
+The aggregated output must be unique on `listing_id` before joining.
 
 ### Review aggregation
 
@@ -981,7 +1155,7 @@ Output:
 one row per listing_id
 ~~~
 
-The output must be unique on listing_id before joining.
+The aggregated output must be unique on `listing_id` before joining.
 
 ### Final join
 
@@ -1000,7 +1174,7 @@ After the join:
 - exactly one row must remain per cleaned listing;
 - final row count must equal cleaned listing row count;
 - unmatched calendar/review IDs must not increase row count;
-- listings with no child-table coverage remain present with appropriate missing/zero rules.
+- listings with no child-table coverage remain present with the required missing/zero rules.
 
 Required output:
 
@@ -1010,49 +1184,50 @@ outputs/data/asheville_listing_features.csv
 
 ---
 
-## 18. Reporting thresholds for categories
+## 19. Reporting thresholds for categories
 
-### 18.1 Neighborhoods
+### 19.1 Neighborhoods
 
 > **USER-REVIEWED DECISION — LOCKED**
 
-Use neighbourhood_cleansed.
+Use `neighbourhood_cleansed`.
 
-For the final reported neighborhood comparison and neighborhood figure:
+For the final neighborhood comparison and neighborhood figure:
 
 ~~~text
 minimum listings per neighborhood = 10
 ~~~
 
-A neighborhood with 9 listings is not report-eligible. A neighborhood with 10 listings is.
+A neighborhood with 9 listings is not report-eligible.
 
-This threshold affects only neighborhood-level reporting and visualization.
+A neighborhood with 10 listings is report-eligible.
 
-It must **not** remove those listings from the analytical table.
+This threshold affects reporting and visualization only.
 
-The neighborhood summary CSV should retain counts for transparency and should clearly indicate which neighborhoods meet the reporting threshold.
+It must not remove listings from the analytical table.
 
-Primary price statistics:
+Neighborhood summary statistics should emphasize:
 
 - listing count;
+- valid-price count;
 - median listing price;
 - Q1;
 - Q3;
 - IQR.
 
-### 18.2 Room type
+### 19.2 Room type
 
-Use room_type as the primary categorical listing-type variable.
+Use `room_type` as the primary categorical listing-type variable.
 
-Do not force a minimum-count threshold unless an actual unexpected data issue makes one necessary. Report such an issue before changing the design.
+Do not impose a minimum-count threshold unless real inspection reveals an unexpected issue requiring review.
 
-### 18.3 Property type
+### 19.3 Property type
 
 > **USER-REVIEWED DECISION — LOCKED**
 
-Retain original property_type values in the analytical table.
+Retain original `property_type` values in the analytical table.
 
-For final reported property-type summaries:
+For final property-type reporting:
 
 ~~~text
 minimum listings per property_type = 10
@@ -1060,15 +1235,15 @@ minimum listings per property_type = 10
 
 Do not combine rare categories automatically.
 
-Any category regrouping requires approval.
+Any regrouping requires approval.
 
 ---
 
-## 19. Stage 1 descriptive-analysis modules
+## 20. Stage 1 descriptive-analysis modules
 
 Exploration may inspect distributions and relationships needed to understand the data, but final reporting should remain selective.
 
-The project should not generate an "everything versus everything" EDA.
+Do not generate an "everything versus everything" EDA.
 
 ### Module A — Listing price structure
 
@@ -1078,9 +1253,9 @@ Focus on:
 - listing_price by report-eligible property_type;
 - listing_price by report-eligible neighbourhood_cleansed;
 - amenity_count versus listing_price;
-- accommodates/bedrooms as contextual variables when needed to interpret price patterns.
+- accommodates/bedrooms when useful for interpreting price relationships.
 
-Use robust summaries such as median/IQR.
+Use robust summaries such as median and IQR.
 
 Do not delete extreme positive prices.
 
@@ -1088,22 +1263,22 @@ Do not delete extreme positive prices.
 
 Focus on:
 
-- calendar_median_price_30d and 90d;
-- calendar_price_iqr_30d and 90d;
+- calendar_median_price_30d;
+- calendar_median_price_90d;
+- calendar_price_iqr_30d;
+- calendar_price_iqr_90d;
 - weekend_premium_pct_90d;
-- availability_rate_30d and 90d.
+- availability_rate_30d;
+- availability_rate_90d.
 
 The required availability-versus-price figure should use:
 
 ~~~text
-calendar_median_price_90d
-vs.
-availability_rate_90d
+x = calendar_median_price_90d
+y = availability_rate_90d
 ~~~
 
-**ARCHITECT IMPLEMENTATION DETAIL:** These two features use the same future horizon, avoiding an unnecessary mismatch between a snapshot listing price and a 90-day availability measure.
-
-Listing_price may be inspected secondarily against availability if useful, but should not replace the required aligned 90-day relationship without approval.
+**ARCHITECT IMPLEMENTATION DETAIL:** These variables share the same future horizon and therefore provide a cleaner descriptive comparison than mixing a snapshot listing price with a 90-day calendar feature.
 
 ### Module C — Recent review activity
 
@@ -1114,41 +1289,34 @@ Focus on:
 - reviews_last_180d;
 - days_since_last_review.
 
-Explore their relationships with relevant listing price, availability, room type, or neighborhood variables only when useful for answering RQ3 or identifying a possible later modeling question.
+Explore relationships with listing price, future availability, room type, or neighborhood only when useful for RQ3 or for identifying a potential later modeling question.
 
 Do not infer bookings directly from review counts.
 
 ### Module D — Host portfolio structure
 
-Use:
-
-~~~text
-single: calculated_host_listings_count == 1
-multi:  calculated_host_listings_count > 1
-~~~
-
-Compare relevant descriptive measures including:
+Compare single-listing and multi-listing hosts on relevant measures such as:
 
 - listing price;
 - calendar median price;
-- availability;
+- future availability;
 - amenity count;
 - room type;
 - recent review activity.
 
-Keep calculated_host_listings_count numeric in the analytical table.
+Keep `calculated_host_listings_count` numeric in the analytical table.
 
-Do not add additional host-size bins unless approved after inspecting the distribution.
+Do not add additional host-size bins without approval.
 
 ---
 
-## 20. Required Stage 1 outputs
+## 21. Required Stage 1 outputs
 
 > **USER-REVIEWED DECISION — LOCKED**
 
-The pipeline must generate all of the following successfully.
+The pipeline must generate all of the following.
 
-### 20.1 Analytical dataset
+### 21.1 Analytical dataset
 
 ~~~text
 outputs/data/asheville_listing_features.csv
@@ -1156,7 +1324,7 @@ outputs/data/asheville_listing_features.csv
 
 One row per cleaned listing.
 
-### 20.2 Summary tables
+### 21.2 Summary tables
 
 ~~~text
 outputs/tables/data_quality_summary.csv
@@ -1167,20 +1335,21 @@ outputs/tables/host_type_summary.csv
 
 #### data_quality_summary.csv
 
-Should contain compact metric/value-style diagnostics covering at least:
+Must include compact metric/value diagnostics covering at least:
 
-- raw and cleaned listing row counts;
+- raw listing row count;
+- cleaned listing row count;
 - unique listing IDs;
 - unique calendar listing IDs;
 - unique review listing IDs;
-- unmatched calendar ID count;
-- unmatched review ID count;
+- unmatched calendar listing-ID count;
+- unmatched review listing-ID count;
 - proportion of listings with calendar coverage;
 - proportion of listings with review coverage;
-- listing price parse/validity failures;
+- invalid/unparseable listing prices;
 - amenity parse failures;
-- count/proportion passing 30-day calendar coverage threshold;
-- count/proportion passing 90-day calendar coverage threshold;
+- count/proportion passing 30-day calendar-coverage threshold;
+- count/proportion passing 90-day calendar-coverage threshold;
 - count/proportion with calculable weekend premium.
 
 #### neighborhood_summary.csv
@@ -1189,18 +1358,20 @@ At minimum:
 
 - neighborhood;
 - listing count;
-- report eligibility flag for n >= 10;
+- report-eligibility flag;
 - valid-price count;
 - median listing price;
 - Q1;
 - Q3;
 - IQR.
 
-The file may contain all neighborhoods for transparency, but final reporting/figure must filter to report-eligible neighborhoods.
+The file may contain all neighborhoods for transparency.
+
+Final reporting/figure must filter to neighborhoods with n >= 10.
 
 #### room_property_summary.csv
 
-Use a tidy schema that distinguishes room_type from property_type, for example via:
+Use a tidy schema that distinguishes room type from property type, for example:
 
 ~~~text
 category_variable
@@ -1214,7 +1385,7 @@ q3_price
 iqr_price
 ~~~
 
-Room types are primary.
+Room type is primary.
 
 Property types are report-eligible only at n >= 10.
 
@@ -1222,35 +1393,37 @@ Property types are report-eligible only at n >= 10.
 
 At minimum compare single and multi hosts on relevant metrics such as:
 
-- n listings;
+- number of listings;
 - median listing price;
 - median amenity count;
-- median availability_rate_90d where available;
-- median calendar_median_price_90d where available;
+- median availability_rate_90d when available;
+- median calendar_median_price_90d when available;
 - median reviews_last_90d;
 - relevant room-type composition where practical.
 
-The exact table layout may be tidy/long or wide, but must remain human-readable and reproducible.
-
 ---
 
-## 21. Required figures
+## 22. Required figures
 
 > **USER-REVIEWED DECISION — LOCKED**
 
-Generate four required figures under:
+All figures must be written to:
 
 ~~~text
 outputs/figures/
 ~~~
 
-Recommended deterministic filenames:
+Do not depend on interactive `plt.show()`.
+
+The pipeline must work in a headless container.
+
+Recommended filenames:
 
 ~~~text
-01_price_by_room_type.png
-02_amenities_vs_listing_price.png
-03_neighborhood_price_comparison.png
-04_future_availability_vs_price.png
+outputs/figures/01_price_by_room_type.png
+outputs/figures/02_amenities_vs_listing_price.png
+outputs/figures/03_neighborhood_price_comparison.png
+outputs/figures/04_future_availability_vs_price.png
 ~~~
 
 ### Figure 1 — Price by room type
@@ -1259,64 +1432,62 @@ Show listing-price distribution across room_type.
 
 Do not remove plausible expensive listings solely as statistical outliers.
 
-If extreme values make a linear plot unreadable, a clearly labeled log-scaled axis may be considered as a presentation choice without deleting data; the Builder should document that choice.
+If extremes make a linear axis unreadable, a clearly labeled log-scaled axis may be used as a presentation choice without deleting observations.
 
 ### Figure 2 — Amenity count versus listing price
 
-Show the relationship between amenity_count and listing_price.
+Show the relationship between `amenity_count` and `listing_price`.
 
-The visualization should support an association interpretation only.
-
-A scatter/transparent-point display, binned robust summaries, or another clearly descriptive approach is acceptable as long as no causal interpretation is implied.
+The figure must support an association interpretation only.
 
 ### Figure 3 — Neighborhood price comparison
 
 Include only neighborhoods with at least 10 listings.
 
-Emphasize median and spread rather than mean alone.
+Emphasize median and spread.
 
 ### Figure 4 — Future availability versus price
 
-Required primary variables:
+Use:
 
 ~~~text
-x: calendar_median_price_90d
-y: availability_rate_90d
+x = calendar_median_price_90d
+y = availability_rate_90d
 ~~~
 
-Use only listings for which both variables are nonmissing under the locked coverage rules.
+Include only rows where both features are nonmissing under the locked coverage rules.
 
-Do not call low availability "high occupancy."
+Do not label low availability as high occupancy.
 
 ### Optional Figure 5
 
-A fifth figure is not required.
+A fifth figure is optional.
 
 It may be added only if Stage 1 exploration reveals a meaningful result around:
 
 - host structure;
-- recent reviews/activity;
+- recent review activity;
 - weekend pricing.
 
-Do not add a fifth figure merely to reach a number.
+Do not add a fifth figure merely to reach a target count.
 
 ---
 
-## 22. Testing strategy
+## 23. Testing strategy
 
-Tests must verify analytical meaning, not just that functions execute.
+Tests must verify analytical meaning, not merely that functions execute.
 
-### 22.1 Unit tests
+### 23.1 Unit tests
 
 #### Price parsing
 
-Test examples including:
+Test:
 
-- normal currency-formatted positive price -> expected numeric value;
-- unparseable value -> missing/invalid flag;
-- zero price -> invalid;
-- negative price -> invalid;
-- very large but positive, parseable price -> retained as valid and not removed automatically.
+- ordinary currency-formatted positive price -> expected numeric value;
+- unparseable value -> missing/invalid;
+- zero -> invalid;
+- negative -> invalid;
+- very large but positive, parseable price -> retained as valid.
 
 #### Amenities parsing
 
@@ -1327,74 +1498,72 @@ Test:
 ["Wifi"] -> 1
 ["Wifi", "Kitchen"] -> 2
 missing -> NA
-malformed -> NA + parse failure
+malformed -> NA + parse-failure diagnostic
 ~~~
 
-Include at least one amenity string containing a comma or punctuation to prove that count is based on parsed list length rather than delimiter counting.
+Include at least one amenity string containing punctuation or a comma to prove that the parser counts parsed list elements rather than delimiters.
 
 #### Review-window boundaries
 
-With SNAPSHOT_DATE = 2026-06-25, test explicitly that:
+Using SNAPSHOT_DATE = 2026-06-25, verify:
 
 - review_date == SNAPSHOT_DATE is included;
 - review_date == SNAPSHOT_DATE - N days is excluded;
-- review_date one day after the lower bound is included.
+- review_date just inside the lower boundary is included.
 
-Test N = 30 and at least one of 90/180, preferably all three.
+Test the exact 30-, 90-, and 180-day logic.
 
 #### Calendar-window boundaries
 
-Test that:
+Verify:
 
 - calendar_date == SNAPSHOT_DATE is included;
 - calendar_date == SNAPSHOT_DATE + N days is excluded;
-- the date immediately before the upper bound is included.
+- the date immediately before the upper boundary is included.
 
 Test both 30 and 90 days.
 
 #### Coverage threshold
 
-Test:
+Verify:
 
-- exactly 24/30 qualifies;
+- 24/30 qualifies;
 - 23/30 does not;
-- exactly 72/90 qualifies;
+- 72/90 qualifies;
 - 71/90 does not.
 
-When below threshold, derived calendar metrics must be NA rather than zero.
+Below-threshold derived calendar metrics must be NA rather than zero.
 
 #### Weekend premium thresholds
 
-Test:
+Verify:
 
-- 8 valid weekend and 20 valid weekday prices + sufficient coverage -> premium calculated;
+- 8 valid weekend prices + 20 valid weekday prices + sufficient coverage -> calculated;
 - 7 weekend + 20 weekday -> NA;
 - 8 weekend + 19 weekday -> NA;
-- insufficient overall 90-day coverage -> NA regardless of group counts.
+- insufficient 90-day coverage -> NA regardless of group counts.
 
 Verify both absolute and percentage formulas.
 
-### 22.2 Aggregation tests
+### 23.2 Aggregation tests
 
-Calendar aggregation must produce unique listing_id.
+Calendar aggregation must produce unique `listing_id`.
 
-Review aggregation must produce unique listing_id.
+Review aggregation must produce unique `listing_id`.
 
 Review aggregation must count review rows, not merely unique review dates.
 
-### 22.3 Join tests
+### 23.3 Join tests
 
 Verify:
 
 - final analytical table row count equals cleaned listing row count;
 - final id is unique;
-- child-table unmatched IDs do not create rows;
-- a listing with no review records remains in final table;
-- a listing with no/insufficient calendar coverage remains in final table.
+- child-table unmatched IDs do not create new rows;
+- a listing with no review records remains in the final table;
+- a listing with no or insufficient calendar coverage remains in the final table.
 
-### 22.4 Missingness tests
-
-Explicitly verify:
+### 23.4 Missingness tests
 
 No reviews:
 
@@ -1415,7 +1584,7 @@ calendar_price_iqr = NA
 
 not zero.
 
-### 22.5 Domain/invariant tests
+### 23.5 Domain/invariant tests
 
 At minimum:
 
@@ -1429,9 +1598,9 @@ reviews_last_90d <= reviews_last_180d
 amenity_count >= 0 when successfully parsed
 ~~~
 
-### 22.6 Reporting-threshold tests
+### 23.6 Reporting-threshold tests
 
-Test:
+Verify:
 
 - neighborhood n = 10 -> report eligible;
 - neighborhood n = 9 -> not report eligible;
@@ -1440,13 +1609,13 @@ Test:
 
 These thresholds must not remove rows from the final analytical dataset.
 
-### 22.7 Output tests
+### 23.7 Output tests
 
-Verify that all required Stage 1 files exist after a successful test-fixture pipeline run.
+After a successful fixture-based pipeline run, verify that all required Stage 1 output files exist.
 
-### 22.8 End-to-end fixture test
+### 23.8 End-to-end fixture test
 
-A tiny synthetic fixture set must pass through:
+The tiny synthetic fixture set in `data/fixtures/` must pass through:
 
 ~~~text
 load
@@ -1460,43 +1629,44 @@ load
 -> generate required outputs
 ~~~
 
-Expected output values for key fixture listings should be known in advance so this is a real correctness test, not only a smoke test.
+Expected values for key fixture listings should be known in advance so this is a real correctness test rather than only a smoke test.
 
 ---
 
-## 23. Explicit acceptance invariants
+## 24. Explicit acceptance invariants
 
 > **USER-REVIEWED DECISION — LOCKED**
 
 The Builder and Tester must treat the following as correctness requirements.
 
-1. Cleaned listings have unique id.
-2. Calendar aggregation has unique listing_id.
-3. Review aggregation has unique listing_id.
+1. Cleaned listings have unique `id`.
+2. Calendar aggregation has unique `listing_id`.
+3. Review aggregation has unique `listing_id`.
 4. Final analytical table has one row per cleaned listing.
 5. Final joins do not increase listing count.
 6. Availability rates are between 0 and 1 when present.
-7. Review counts satisfy reviews_last_30d <= reviews_last_90d <= reviews_last_180d.
-8. Listings with no reviews have zero review-window counts but missing days_since_last_review.
+7. Review counts satisfy `reviews_last_30d <= reviews_last_90d <= reviews_last_180d`.
+8. Listings with no reviews have zero review-window counts but missing `days_since_last_review`.
 9. Listings without sufficient calendar coverage have calendar-derived features missing rather than zero.
-10. amenity_count >= 0 whenever amenities parsed successfully.
+10. `amenity_count >= 0` whenever amenities parsed successfully.
 11. All required output files are generated successfully.
-
-Additional project-level invariants from this plan:
-
-12. Every time-window calculation uses SNAPSHOT_DATE = 2026-06-25 rather than execution date.
+12. Every time-window calculation uses `SNAPSHOT_DATE = 2026-06-25`.
 13. Calendar coverage threshold is 80% unless approval is obtained to change it.
-14. Weekend premium uses Friday/Saturday, a 90-day window, >=8 valid weekend prices, and >=20 valid weekday prices.
-15. The final reported neighborhood comparison uses only neighborhoods with n >= 10.
+14. Weekend premium uses Friday/Saturday, the 90-day window, >=8 valid weekend prices, and >=20 valid weekday prices.
+15. Final neighborhood reporting uses only neighborhoods with n >= 10.
 16. Reported property-type comparisons use only property types with n >= 10.
 17. Plausible positive price extremes are not automatically deleted.
 18. Raw calendar and raw reviews are never directly many-to-many joined.
-19. Full raw datasets are not committed to the repository.
-20. Stage 1 does not require a predictive/statistical model.
+19. Full raw datasets are not committed.
+20. Stage 1 does not require a statistical/predictive model.
+21. `python main.py` executes the complete Stage 1 pipeline.
+22. Required figures are written to `outputs/figures/` without requiring an interactive display.
+23. The default Docker container command executes the real Stage 1 pipeline.
+24. Mounted Docker outputs appear under the host `outputs/` directory.
 
 ---
 
-## 24. Docker/container workflow
+## 25. Docker/container workflow
 
 > **USER-REVIEWED DECISION — LOCKED**
 
@@ -1505,102 +1675,79 @@ The Docker image should contain:
 - project code;
 - Python runtime;
 - dependencies;
-- tests as needed for containerized testing.
+- any files needed to execute the application.
 
-The image should **not** contain the full raw Airbnb datasets or permanently embed generated outputs.
+The image must **not** contain:
+
+- the full real Inside Airbnb raw datasets;
+- permanently embedded generated Stage 1 outputs.
 
 Raw data and outputs must be mounted at runtime.
 
-Conceptual container paths:
+Expected container paths:
 
 ~~~text
 /app/data/raw
 /app/outputs
 ~~~
 
-Example workflow the Builder should support:
+Canonical workflow:
 
 ~~~bash
-docker build -t asheville-airbnb-pipeline .
+docker build -t asheville-airbnb-analysis .
 
-docker run --rm   -v "$(pwd)/data/raw:/app/data/raw:ro"   -v "$(pwd)/outputs:/app/outputs"   asheville-airbnb-pipeline
+docker run --rm \
+  -v "$(pwd)/data/raw:/app/data/raw:ro" \
+  -v "$(pwd)/outputs:/app/outputs" \
+  asheville-airbnb-analysis
 ~~~
 
-The raw-data mount should be read-only where practical.
+The raw-data mount should be read-only.
+
+The Dockerfile's default command should execute the equivalent of:
+
+~~~bash
+python main.py
+~~~
+
+from the application directory.
+
+The container must therefore:
+
+1. read the mounted real raw data;
+2. run the same validation/cleaning/feature pipeline used locally;
+3. generate the same required Stage 1 artifacts; and
+4. write them into the mounted `/app/outputs` directory so they appear on the host.
 
 No Docker Compose is required.
 
-A containerized test command should also be supported, either by overriding the default command or via a documented test invocation.
+A containerized test command may additionally be documented, but it does not replace the requirement that the default container execution runs the actual pipeline.
 
 ---
 
-## 25. Local setup/run/test interface
+## 26. Headless plotting requirement
 
-The Builder should make the project runnable through simple documented commands.
+> **USER-REVIEWED DECISION — LOCKED**
 
-### Required behaviors
+All required figures must be saved as files.
 
-#### Install/setup
+The analysis must not depend on a graphical desktop session or interactive plotting window.
 
-Preferred developer workflow:
+Required behavior:
 
-~~~bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
+~~~text
+analysis creates figure
+-> save to outputs/figures/<required_filename>.png
+-> close/release figure
 ~~~
 
-The README should also note the Windows activation equivalent if needed.
+Interactive `plt.show()` may be omitted entirely.
 
-#### Run tests
-
-~~~bash
-pytest -q
-~~~
-
-#### Run the Stage 1 pipeline
-
-Preferred module interface:
-
-~~~bash
-python -m airbnb_pipeline.pipeline   --raw-dir data/raw   --output-dir outputs
-~~~
-
-Equivalent CLI naming is acceptable if documented consistently.
-
-### Makefile convenience interface
-
-The Builder should support simple wrappers such as:
-
-~~~bash
-make install
-make test
-make run
-make docker-build
-make docker-run
-~~~
-
-The Makefile should call the same canonical implementation rather than duplicate logic.
-
-### Successful pipeline behavior
-
-A normal run should:
-
-1. verify expected inputs;
-2. validate schemas/keys;
-3. emit or record data-quality diagnostics;
-4. clean relevant variables;
-5. aggregate calendar;
-6. aggregate reviews;
-7. join features;
-8. write the final analytical table;
-9. write the four required summary tables;
-10. generate the four required figures;
-11. fail clearly on unrecoverable contract violations rather than silently producing misleading output.
+If used during local exploration, it must not be required by `python main.py` and must not block headless Docker execution.
 
 ---
 
-## 26. Data-quality reporting versus hard failures
+## 27. Data-quality reporting versus hard failures
 
 **ARCHITECT IMPLEMENTATION DETAIL**
 
@@ -1610,122 +1757,99 @@ Not every anomaly should crash the pipeline.
 
 - required input file missing;
 - required column missing;
-- cleaned listing id cannot be made unique without an unresolved duplicate problem;
-- calendar duplicate (listing_id, date) issue that would materially affect aggregation and has not been approved/resolved;
+- cleaned listing ID cannot be made unique without an unresolved duplicate problem;
+- duplicate calendar `(listing_id, date)` rows create unresolved aggregation ambiguity;
 - final join increases listing row count;
-- required output cannot be generated because of a code failure.
+- required outputs cannot be generated because of code failure.
 
 ### Diagnostic/nonfatal examples
 
 - unmatched review listing IDs;
 - unmatched calendar listing IDs;
-- invalid listing price values;
+- invalid listing prices;
 - malformed amenities values;
 - listings with insufficient calendar coverage;
 - listings with no reviews;
 - rare property types;
-- neighborhoods below the reporting threshold.
+- neighborhoods below reporting threshold.
 
-These should be visible in data_quality_summary.csv and/or logs rather than silently discarded.
+These should be visible in `data_quality_summary.csv` and/or concise pipeline logs rather than silently discarded.
 
-If an unexpected anomaly requires a new cleaning rule, the Builder must report it before inventing a rule that changes analytical meaning.
+If an unexpected anomaly requires a new cleaning rule that changes analytical meaning, the Builder must report it before inventing the rule.
 
 ---
 
-## 27. Risks and interpretation caveats
+## 28. Risks and interpretation caveats
 
-The README/reporting should state these clearly.
+The README and final descriptive discussion should preserve these caveats.
 
-### 27.1 Availability is not occupancy
+### 28.1 Availability is not occupancy
 
-An unavailable calendar date may reflect a booking or a host-blocked date. Therefore:
+An unavailable calendar date may reflect a booking or a host-blocked date.
+
+Therefore:
 
 - call the measure forward availability;
-- do not label 1 - availability_rate as occupancy;
+- do not label `1 - availability_rate` as occupancy;
 - do not infer booking demand directly.
 
-### 27.2 Reviews are an imperfect activity proxy
+### 28.2 Reviews are an imperfect activity proxy
 
-Not every stay produces a review. Recent review counts and recency can be treated as rough activity signals, not actual stay counts.
+Not every stay produces a review.
 
-### 27.3 Listing price and calendar price are different concepts
+Recent review counts and recency are rough activity signals, not actual stay counts.
 
-listing_price is a snapshot listing-level quoted price used primarily for cross-sectional comparisons.
+### 28.3 Listing price and calendar price are different concepts
 
-calendar_median_price_Nd is derived from dated future quoted prices and measures future pricing behavior.
+`listing_price` is a snapshot listing-level quoted price used mainly for cross-sectional comparisons.
+
+`calendar_median_price_Nd` is derived from dated future quoted prices and describes future pricing behavior.
 
 Do not silently substitute one for the other.
 
-### 27.4 Calendar prices are asking/quoted prices
+### 28.4 Calendar prices are quoted prices
 
 They are not transaction prices and do not prove what guests actually paid.
 
-### 27.5 Snapshot design limits temporal claims
+### 28.5 Snapshot design limits temporal claims
 
-This project uses one Asheville snapshot. It can describe cross-sectional and forward-calendar patterns from that snapshot but cannot establish long-run market trends.
+This project uses one Asheville snapshot.
 
-### 27.6 Amenity count is intentionally simplified
+It can describe cross-sectional and forward-calendar patterns from that snapshot but cannot establish long-run market trends.
 
-amenity_count treats each listed amenity equally and does not distinguish amenity importance or quality.
+### 28.6 Amenity count is intentionally simplified
+
+`amenity_count` treats each listed amenity equally and does not distinguish amenity importance or quality.
 
 A larger count is not automatically greater consumer utility.
 
-### 27.7 Price associations are confounded by property characteristics
+### 28.7 Price associations are confounded
 
-A listing with more amenities may also be larger, have more bedrooms, accommodate more guests, or be located in a more expensive neighborhood.
+Listings with more amenities may also be larger, accommodate more guests, have more bedrooms, or be located in more expensive neighborhoods.
 
-Stage 1 should describe these relationships rather than claim causal effects.
+Stage 1 should describe associations rather than claim causal effects.
 
-### 27.8 Extreme positive prices may be real
+### 28.8 Extreme positive prices may be real
 
-Luxury/large/event-driven prices should not be deleted merely because they are statistically unusual.
+Luxury, large-property, or event-driven prices should not be deleted merely because they are statistically unusual.
 
-### 27.9 Host portfolio measure is snapshot/context specific
+### 28.9 Host portfolio measure is snapshot/context specific
 
-calculated_host_listings_count should be interpreted according to the listings captured in the Inside Airbnb scrape, not automatically as a host's complete global business portfolio.
+`calculated_host_listings_count` should be interpreted according to listings captured in the Inside Airbnb scrape, not automatically as a host's complete global business portfolio.
 
-### 27.10 Coverage thresholds are project design rules
+### 28.10 Coverage thresholds are project rules
 
-The 80% calendar threshold and 8/20 weekend/weekday observation rules are explicit quality rules selected for this project. They are not universal truths.
+The 80% calendar-coverage threshold and 8/20 weekend/weekday observation rules are explicit project quality rules, not universal truths.
 
-### 27.11 Reporting thresholds affect presentation, not the dataset
+### 28.11 Reporting thresholds affect presentation, not the dataset
 
-Neighborhood/property-type n >= 10 thresholds are designed to reduce unstable small-group reporting. They must not delete underlying listing rows.
+Neighborhood/property-type n >= 10 thresholds reduce unstable small-group reporting.
 
-### 27.12 Association is not causation
+They must not delete underlying listing rows.
+
+### 28.12 Association is not causation
 
 All Stage 1 relationships are descriptive.
-
----
-
-## 28. Conditional modeling checkpoint
-
-> **USER-REVIEWED DECISION — LOCKED**
-
-Modeling is **not guaranteed** and is not part of Stage 1's definition of done.
-
-After Stage 1:
-
-1. the project owner reviews the analytical table, summary tables, figures, and descriptive findings;
-2. the owner decides whether a relationship is meaningful enough to model;
-3. no model is implemented until docs/plan.md is updated.
-
-If modeling is approved, the plan must be amended **before the Builder writes modeling code** to specify:
-
-- exact target/outcome;
-- predictor set;
-- model family;
-- baseline;
-- train/test or validation design where applicable;
-- evaluation metric(s);
-- any price transformation;
-- any trimming/winsorization/robust treatment;
-- handling of categories/missingness;
-- modeling-specific tests and acceptance criteria.
-
-The Tester must receive this updated specification before validating modeling behavior.
-
-Stage 1 remains valid and complete even if the modeling checkpoint results in a decision not to add a model.
 
 ---
 
@@ -1733,26 +1857,26 @@ Stage 1 remains valid and complete even if the modeling checkpoint results in a 
 
 A downstream Builder should implement in this order.
 
-### Phase 1 — Project skeleton
+### Phase 1 — Repository skeleton
 
-- create package/module structure;
-- add project dependencies;
-- add configuration constants;
-- add .gitignore;
+- create the file layout in Section 6;
+- add `requirements.txt`;
+- add `.gitignore`;
+- add `.dockerignore`;
 - add Makefile;
 - add Dockerfile;
-- create output directories/placeholders.
+- create output directories;
+- keep `main.py` as the single obvious Stage 1 entry point.
 
-### Phase 2 — Fixtures and tests first
+### Phase 2 — Fixtures and test contracts
 
-- create tiny synthetic fixtures;
+- create tiny synthetic fixtures under `data/fixtures/`;
 - encode temporal-boundary tests;
 - encode missingness tests;
-- encode coverage tests;
+- encode calendar-coverage tests;
 - encode weekend-premium tests;
+- encode reporting-threshold tests;
 - encode join invariants.
-
-The Builder does not need perfect test completeness before implementation, but should establish the contracts early.
 
 ### Phase 3 — Loading and validation
 
@@ -1765,74 +1889,213 @@ The Builder does not need perfect test completeness before implementation, but s
 ### Phase 4 — Cleaning and listing features
 
 - parse listing price;
-- parse amenity list;
+- parse amenities;
 - compute amenity_count;
 - retain neighborhood/room/property/host variables;
 - create host_type.
 
 ### Phase 5 — Calendar features
 
-- enforce fixed 30/90-day windows;
+- apply fixed 30/90-day windows;
 - compute coverage metrics;
 - apply 80% gate;
 - compute availability;
 - compute median/IQR future prices;
-- compute 90-day weekend premiums with 8/20 observation rules.
+- compute 90-day weekend premiums using the locked 8/20 thresholds.
 
 ### Phase 6 — Review features
 
-- enforce fixed lookback windows;
-- compute 30/90/180-day counts;
-- compute last review date and days-since-last-review;
+- apply fixed 30/90/180-day lookback windows;
+- compute review counts;
+- compute last-review date;
+- compute days-since-last-review;
 - apply no-review missingness rules.
 
 ### Phase 7 — Integration
 
 - assert unique aggregated keys;
-- left-join to listings;
-- assert one row per cleaned listing;
-- write asheville_listing_features.csv.
+- left-join onto listings;
+- verify row-count invariants;
+- write `asheville_listing_features.csv`.
 
 ### Phase 8 — Descriptive outputs
 
 - generate data-quality summary;
-- generate neighborhood summary with n >= 10 reporting flag;
+- generate neighborhood summary;
 - generate room/property summary;
 - generate host summary;
-- generate four required figures.
+- generate four required figures;
+- save figures to disk rather than showing them interactively.
 
 ### Phase 9 — Reproducibility
 
-- verify clean local run from documented commands;
-- verify pytest;
-- build Docker image;
-- run with mounted raw/output volumes;
-- verify outputs match required contract.
+Verify locally:
 
-### Phase 10 — Handoff
+~~~bash
+python -m pip install -r requirements.txt
+python main.py
+python -m pytest -v
+~~~
 
-Report to the project owner:
+Then verify Docker:
+
+~~~bash
+docker build -t asheville-airbnb-analysis .
+
+docker run --rm \
+  -v "$(pwd)/data/raw:/app/data/raw:ro" \
+  -v "$(pwd)/outputs:/app/outputs" \
+  asheville-airbnb-analysis
+~~~
+
+### Phase 10 — Builder handoff
+
+The Builder should report:
 
 - any unexpected data-quality findings;
-- any thresholds that create surprising loss of usable data;
+- any locked thresholds that create surprising loss of usable data;
 - any proposed technical change requiring approval;
-- Stage 1 descriptive findings;
-- whether a modeling question appears potentially worthwhile.
+- confirmation that required outputs are produced;
+- confirmation that tests pass;
+- confirmation that Docker executes the real pipeline.
 
-Do not implement a model during this handoff.
+The Builder must not proceed directly into optional modeling.
 
 ---
 
-## 30. Definition of done — Stage 1
+## 30. Required manual smoke-test gate before Tester stage
 
-Stage 1 is complete when all of the following are true:
+> **USER-REVIEWED DECISION — LOCKED**
+
+The assignment requires the project owner to manually verify the Builder implementation before an independent Tester stage begins.
+
+This is a separate acceptance gate from the automated test suite.
+
+After the Builder finishes Stage 1 implementation, the project owner should personally verify all of the following from a clean or reasonably clean environment:
+
+1. setup instructions in README are understandable and complete;
+2. dependencies install successfully with:
+
+   ~~~bash
+   python -m pip install -r requirements.txt
+   ~~~
+
+3. the full real pipeline completes without errors with:
+
+   ~~~bash
+   python main.py
+   ~~~
+
+4. the final listing-level analytical file is generated:
+
+   ~~~text
+   outputs/data/asheville_listing_features.csv
+   ~~~
+
+5. all four required summary CSVs are generated:
+
+   ~~~text
+   outputs/tables/data_quality_summary.csv
+   outputs/tables/neighborhood_summary.csv
+   outputs/tables/room_property_summary.csv
+   outputs/tables/host_type_summary.csv
+   ~~~
+
+6. all four required figures are generated under `outputs/figures/`;
+7. the figures are usable image files and do not require an interactive plotting window;
+8. the automated tests pass with:
+
+   ~~~bash
+   python -m pytest -v
+   ~~~
+
+9. the Docker image builds successfully with:
+
+   ~~~bash
+   docker build -t asheville-airbnb-analysis .
+   ~~~
+
+10. the Docker container runs the actual Stage 1 pipeline successfully with:
+
+   ~~~bash
+   docker run --rm \
+     -v "$(pwd)/data/raw:/app/data/raw:ro" \
+     -v "$(pwd)/outputs:/app/outputs" \
+     asheville-airbnb-analysis
+   ~~~
+
+11. outputs generated inside the container appear correctly in the host `outputs/` directory;
+12. the README commands match the commands that actually worked during the manual test.
+
+### Smoke-test documentation requirement
+
+The result of this manual smoke test must later be documented in the Repository B README **before the independent Tester stage begins**.
+
+The README smoke-test note should record, at minimum:
+
+- that the manual verification was performed;
+- whether local setup/run/test succeeded;
+- whether Docker build/run succeeded;
+- whether mounted outputs appeared correctly;
+- any known issue that remains unresolved.
+
+Do not begin the independent Tester stage until this manual smoke-test gate is complete.
+
+The Tester should then compare the implementation against this plan independently rather than relying only on the Builder's own tests.
+
+---
+
+## 31. Conditional modeling checkpoint
+
+> **USER-REVIEWED DECISION — LOCKED**
+
+Modeling is **not guaranteed** and is not part of Stage 1's definition of done.
+
+After Stage 1:
+
+1. the project owner reviews the analytical table, summary tables, figures, and descriptive findings;
+2. the owner decides whether a relationship is meaningful enough to model;
+3. no model is implemented until `docs/plan.md` is updated.
+
+If modeling is approved, the plan must be amended **before** the Builder writes modeling code to specify:
+
+- exact target/outcome;
+- predictor set;
+- model family;
+- baseline;
+- train/test or validation design where applicable;
+- evaluation metric(s);
+- any price transformation;
+- any trimming/winsorization/robust treatment;
+- category handling;
+- missingness handling;
+- modeling-specific tests;
+- modeling acceptance criteria.
+
+The Tester must receive the updated specification before validating modeling behavior.
+
+Stage 1 remains complete even if the modeling checkpoint results in a decision not to add a model.
+
+---
+
+## 32. Definition of done — Stage 1
+
+Stage 1 is complete only when all requirements below are met.
 
 ### Purpose and data
 
-- README clearly states the project purpose and research questions.
+- README clearly states project purpose and research questions.
 - README documents the Asheville 2026-06-25 snapshot.
-- README gives exact raw-data download/placement instructions.
-- Raw source files are not committed.
+- README gives exact raw-data placement instructions.
+- Full raw source files are not committed.
+
+### Repository and command interface
+
+- the repository follows the simple structure in Section 6;
+- `requirements.txt` installs the required dependencies;
+- `python main.py` is the obvious and documented full-pipeline command;
+- `python -m pytest -v` is the documented test command;
+- Docker commands in README match the working commands.
 
 ### Pipeline
 
@@ -1840,10 +2103,10 @@ Stage 1 is complete when all of the following are true:
 - required validation executes;
 - fixed temporal rules are used;
 - listing/calendar/review features are constructed according to this plan;
-- calendar and reviews are aggregated before joining;
+- calendar and review tables are aggregated before joining;
 - final table contains one row per cleaned listing.
 
-### Outputs
+### Required outputs
 
 The pipeline generates:
 
@@ -1865,43 +2128,54 @@ The optional fifth figure is not required.
 
 ### Tests
 
-- unit tests cover key parsers and feature formulas;
-- time-window boundaries are tested;
-- 80% calendar threshold boundaries are tested;
-- weekend 8/20 thresholds are tested;
-- missingness rules are tested;
-- aggregation uniqueness is tested;
-- join invariants are tested;
-- category-reporting thresholds are tested;
-- required output generation is tested;
+- price parsing tests pass;
+- amenities parsing tests pass;
+- temporal-window boundary tests pass;
+- 80% calendar threshold tests pass;
+- 8/20 weekend threshold tests pass;
+- variable-specific missingness tests pass;
+- aggregation uniqueness tests pass;
+- join invariants pass;
+- category-reporting threshold tests pass;
+- required output generation tests pass;
 - one end-to-end fixture test passes.
 
 ### Reproducibility
 
-- local setup/run/test commands are documented and work;
+- local dependency installation works;
+- `python main.py` completes successfully;
+- required output files are written;
+- required figures are saved noninteractively;
 - Docker image builds;
-- Docker pipeline runs with raw-data/output volume mounts;
-- Docker does not embed full raw Airbnb data;
-- generated artifacts are deterministic given the same input files and project version.
+- Docker default command runs the real Stage 1 pipeline;
+- raw data are mounted rather than embedded;
+- output volume mount writes results back to the host;
+- generated artifacts are deterministic given the same inputs and project version.
+
+### Manual verification
+
+- the project owner completes the smoke-test checklist in Section 30;
+- smoke-test results are documented in README;
+- only then is the project ready for independent Tester review.
 
 ### Analytical integrity
 
 - no occupancy claims are made from availability;
 - no booking-count claims are made from reviews;
-- listing price and calendar-derived prices are kept conceptually separate;
+- listing price and calendar-derived prices remain conceptually separate;
 - statistically extreme but valid positive prices are not automatically deleted;
-- small neighborhood/property categories are filtered only from reporting, not from the analytical dataset;
-- no excluded-scope features are added without approval.
+- small neighborhood/property categories are filtered only from reporting;
+- no excluded-scope feature is added without approval.
 
-When these conditions are met, the assignment has a complete Stage 1 project even if no model is ever added.
+When these conditions are met, Repository B has a complete Stage 1 project even if no model is added.
 
 ---
 
-## 31. Locked decisions from project-owner review — consolidated checklist
+## 33. Locked decisions from project-owner review — consolidated checklist
 
 The following choices were explicitly made or approved by the project owner and must be treated as fixed unless approval is obtained to revise them:
 
-1. Use listings.csv.gz + calendar.csv.gz + reviews.csv only.
+1. Use `listings.csv.gz` + `calendar.csv.gz` + `reviews.csv` only.
 2. Use the Asheville snapshot dated 2026-06-25.
 3. Make all temporal windows deterministic relative to SNAPSHOT_DATE.
 4. Future windows are half-open: snapshot <= date < snapshot + N days.
@@ -1910,33 +2184,41 @@ The following choices were explicitly made or approved by the project owner and 
 7. Listing price is for cross-sectional listing analysis; calendar prices are separate dynamic-price features.
 8. Use all valid quoted calendar prices for dynamic-price calculations rather than only available dates.
 9. Calendar coverage must be measured explicitly.
-10. Require >=80% calendar coverage before calendar-derived 30/90-day analytical features are valid.
+10. Require >=80% calendar coverage before 30/90-day calendar-derived analytical features are valid.
 11. Below-threshold calendar features are NA, not zero.
 12. Weekend means Friday/Saturday.
 13. Keep both absolute and percentage weekend premium.
 14. Main weekend analysis uses percentage premium.
 15. Weekend premium requires 90-day coverage plus >=8 valid weekend and >=20 valid weekday prices.
-16. Use only amenity_count; no individual amenity indicators.
+16. Use only `amenity_count`; no individual amenity indicators.
 17. Parse amenities as a list rather than counting delimiters.
-18. Use neighbourhood_cleansed as the main location variable.
+18. Use `neighbourhood_cleansed` as the main location variable.
 19. Final neighborhood reporting requires >=10 listings.
-20. Use room_type as the main compact listing-type variable.
-21. Preserve original property_type values.
+20. Use `room_type` as the main compact listing-type variable.
+21. Preserve original `property_type` values.
 22. Report property types only when n >= 10.
 23. Do not regroup property types without approval.
 24. Do not automatically delete plausible statistical price outliers.
-25. Keep calculated_host_listings_count numeric.
+25. Keep `calculated_host_listings_count` numeric.
 26. Required host comparison is 1 versus >1; additional bins require inspection/approval.
 27. Include explicit unmatched-ID and coverage diagnostics.
 28. Stage 1 descriptive analysis is the required core deliverable.
 29. Modeling is conditional on owner review after Stage 1.
 30. Modeling requires a plan amendment before implementation.
 31. Full raw datasets are not committed.
-32. Tiny test fixtures are committed.
+32. Tiny synthetic test fixtures are committed.
 33. Docker contains code/dependencies; raw data and outputs are mounted volumes.
-34. Required outputs are the analytical CSV, four summary CSVs, and four required figures listed above.
-35. A fifth figure is optional and evidence-driven.
-36. Do not add NLP, GeoJSON/spatial analysis, dashboards, databases, APIs, Docker Compose, or individual amenity indicators without explicit approval.
-37. The acceptance invariants in Section 23 define correctness for Builder and Tester.
+34. Docker default execution runs the real pipeline.
+35. Required outputs are the analytical CSV, four summary CSVs, and four required figures.
+36. Figures are saved to `outputs/figures/`; the pipeline must not depend on interactive `plt.show()`.
+37. A fifth figure is optional and evidence-driven.
+38. Do not add NLP, GeoJSON/spatial analysis, dashboards, databases, APIs, Docker Compose, or individual amenity indicators without explicit approval.
+39. Keep the repository/file structure simple and close to the layout in Section 6.
+40. `python main.py` is the canonical full Stage 1 command.
+41. `python -m pip install -r requirements.txt` is the canonical dependency-install command.
+42. `python -m pytest -v` is the canonical test command.
+43. The manual smoke-test gate must occur after Builder implementation and before independent Tester review.
+44. Smoke-test results must be documented in README before the Tester stage.
+45. The acceptance invariants in Section 24 define correctness for Builder and Tester.
 
-This checklist is intended to make the downstream workflow unambiguous and to preserve the technical decisions made during architecture review.
+This checklist exists to preserve the technical decisions made during architecture review and make the downstream workflow unambiguous.
