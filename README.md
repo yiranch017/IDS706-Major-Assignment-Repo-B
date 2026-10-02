@@ -100,6 +100,8 @@ The default container command is `python main.py`, which runs the real pipeline.
 with the headless `Agg` backend, so no display is needed. To run the tests in the image:
 `docker run --rm asheville-airbnb-analysis python -m pytest -v`.
 
+Docker Compose is not used because this project runs as a single Python analysis service and does not require multiple containers.
+
 ## Interpretation caveats
 
 - **Availability is not occupancy.** Unavailable dates may be bookings or host blocks; call it *forward availability*.
