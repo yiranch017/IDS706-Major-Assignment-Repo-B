@@ -1,0 +1,11 @@
+# Keep the real raw data and stale host outputs out of the image
+data/raw/
+outputs/
+.git/
+.venv/
+venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store

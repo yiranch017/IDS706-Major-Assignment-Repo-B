@@ -1,0 +1,26 @@
+# Raw Inside Airbnb data is never committed (see README for download steps)
+data/raw/*
+!data/raw/.gitkeep
+
+# Row-level derivative data is never committed.
+# Aggregate summary tables (outputs/tables/) and figures (outputs/figures/)
+# are intentionally NOT ignored so final results can be committed as evidence.
+outputs/data/asheville_listing_features.csv
+
+# Python / test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
