@@ -109,6 +109,7 @@ with the headless `Agg` backend, so no display is needed. To run the tests in th
 - **Amenity count** treats all amenities equally; more amenities is not "better". Price associations are confounded by size, location, etc.
 - Extreme positive prices may be real and are not deleted; summaries emphasize median and IQR.
 - `calculated_host_listings_count` reflects listings in this scrape, not a host's complete portfolio.
+- **Late calendar start:** 284 listings begin their calendar on 2026-07-03 rather than the 2026-06-25 snapshot date, so they have 22/30 observed days and fail the 30-day 80 % coverage rule (their `availability_rate_30d` is `NA`), while still passing the 90-day rule with 82/90 observed days. Overall 2,581 of 2,865 listings pass the 30-day rule and all 2,865 pass the 90-day rule.
 - The 80 % coverage rule and n ≥ 10 reporting thresholds are project rules, not universal truths.
 - All Stage 1 relationships are descriptive, not causal.
 
@@ -130,6 +131,8 @@ The documented local and Docker commands worked as expected.
 <img width="1037" height="479" alt="Screenshot 2026-10-01 at 22 42 20" src="https://github.com/user-attachments/assets/66eb1817-219c-45ab-a887-8f90cc32fcdf" />
 <img width="601" height="130" alt="Screenshot 2026-10-01 at 22 42 39" src="https://github.com/user-attachments/assets/1610afed-c89e-437d-97b8-998320c93291" />
 
+
+**Known unresolved issues:** none.
 
 ## AI-assisted workflow and reflection
 

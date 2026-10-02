@@ -75,14 +75,21 @@ def normalize_ids(series: pd.Series) -> pd.Series:
     return num.astype("Int64")
 
 
-def parse_price(series: pd.Series) -> pd.Series:
-    """Currency string -> positive float. Blank, unparseable and non-positive values -> NaN.
+_PLAIN_DECIMAL = r"\d+(?:\.\d*)?|\.\d+"
 
-    Large positive values are valid: statistical outliers are never removed here.
+
+def parse_price(series: pd.Series) -> pd.Series:
+    """Currency string -> positive finite float. Everything else -> NaN.
+
+    After removing "$", commas and whitespace only a plain decimal ("85", "1250.50") is accepted:
+    scientific notation ("1e3"), inf/Infinity/NaN, signs, other currencies and values that overflow
+    to infinity are invalid, as are blank and non-positive values. Large positive values are valid:
+    statistical outliers are never removed here.
     """
     text = series.astype("string").str.replace(r"[$,\s]", "", regex=True)
-    num = pd.to_numeric(text, errors="coerce").astype("float64")
-    return num.where(num > 0)
+    plain = text.where(text.str.fullmatch(_PLAIN_DECIMAL).fillna(False))
+    num = pd.to_numeric(plain, errors="coerce").astype("float64")
+    return num.where(np.isfinite(num) & (num > 0))
 
 
 def _amenity_list(value):
