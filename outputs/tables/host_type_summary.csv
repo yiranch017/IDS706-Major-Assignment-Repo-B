@@ -1,0 +1,3 @@
+host_type,n_listings,median_listing_price,median_amenity_count,median_availability_rate_90d,median_reviews_last_90d,room_share_entire_home_apt,room_share_private_room,room_share_hotel_room,room_share_shared_room
+single,1342,195.25,47.5,0.5888888888888889,2.0,0.9210134128166915,0.07898658718330849,0.0,0.0
+multi,1523,260.0,46.0,0.6333333333333333,2.0,0.8949441891004596,0.0984898227183191,0.0013131976362442547,0.005252790544977019

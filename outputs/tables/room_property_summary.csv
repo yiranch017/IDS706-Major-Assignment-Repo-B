@@ -1,0 +1,54 @@
+category_variable,category_value,n_listings,report_eligible,n_valid_price,median_price,q1_price,q3_price,iqr_price
+room_type,Entire home/apt,2599,True,2374,237.32999999999998,159.565,370.375,210.81
+room_type,Hotel room,2,True,2,179.0,172.0,186.0,14.0
+room_type,Private room,256,True,232,113.75,80.89,173.595,92.705
+room_type,Shared room,8,True,8,55.5,34.0,63.0,29.0
+property_type,Barn,3,False,3,275.0,202.0,360.25,158.25
+property_type,Camper/RV,17,True,13,109.0,82.33,142.0,59.67
+property_type,Campsite,10,True,10,32.0,31.25,36.25,5.0
+property_type,Cave,1,False,0,,,,
+property_type,Earthen home,1,False,1,72.5,72.5,72.5,0.0
+property_type,Entire bungalow,40,True,36,199.75,150.485,253.625,103.13999999999999
+property_type,Entire cabin,155,True,150,333.0,275.75,395.0,119.25
+property_type,Entire chalet,10,True,10,348.1,249.35999999999999,481.5,232.14000000000001
+property_type,Entire condo,153,True,149,299.0,213.0,387.75,174.75
+property_type,Entire cottage,78,True,73,218.54,171.18,301.0,129.82
+property_type,Entire guest suite,264,True,227,149.0,125.0,187.25,62.25
+property_type,Entire guesthouse,101,True,91,159.76,126.0,196.75,70.75
+property_type,Entire home,1196,True,1075,302.67,204.385,451.16499999999996,246.77999999999997
+property_type,Entire home/apt,2,False,2,878.7750000000001,565.3275,1192.2225,626.8950000000001
+property_type,Entire loft,28,True,28,314.75,183.2375,343.375,160.1375
+property_type,Entire place,10,True,10,160.25,124.4975,232.75,108.2525
+property_type,Entire rental unit,395,True,367,177.0,128.0,239.5,111.5
+property_type,Entire serviced apartment,2,False,1,123.0,123.0,123.0,0.0
+property_type,Entire townhouse,42,True,39,400.0,247.025,523.875,276.85
+property_type,Entire vacation home,9,False,8,315.83500000000004,146.83249999999998,491.125,344.2925
+property_type,Entire villa,19,True,19,467.0,387.0,1141.515,754.5150000000001
+property_type,Farm stay,10,True,10,227.5,186.435,357.25,170.815
+property_type,Hut,2,False,2,46.0,41.5,50.5,9.0
+property_type,Private room,12,True,12,102.0,99.25,102.0,2.75
+property_type,Private room in bed and breakfast,11,True,11,286.0,235.0,314.1,79.10000000000002
+property_type,Private room in bungalow,8,False,7,83.0,60.665,89.75,29.085
+property_type,Private room in cabin,2,False,2,190.145,135.2175,245.0725,109.85499999999999
+property_type,Private room in camper/rv,1,False,1,47.0,47.0,47.0,0.0
+property_type,Private room in farm stay,1,False,1,137.0,137.0,137.0,0.0
+property_type,Private room in guest suite,16,True,13,143.0,108.5,149.5,41.0
+property_type,Private room in guesthouse,2,False,2,199.65,178.47500000000002,220.825,42.349999999999966
+property_type,Private room in home,140,True,123,102.0,78.0,138.25,60.25
+property_type,Private room in hostel,2,False,2,107.5,99.25,115.75,16.5
+property_type,Private room in loft,1,False,0,,,,
+property_type,Private room in religious building,1,False,1,165.5,165.5,165.5,0.0
+property_type,Private room in rental unit,13,True,12,79.31,74.1775,87.25,13.072500000000005
+property_type,Private room in tent,1,False,1,27.39,27.39,27.39,0.0
+property_type,Private room in tiny home,1,False,1,134.0,134.0,134.0,0.0
+property_type,Private room in townhouse,5,False,5,132.5,113.0,161.31,48.31
+property_type,Private room in treehouse,1,False,1,39.0,39.0,39.0,0.0
+property_type,Room in boutique hotel,12,True,12,533.5,165.0,658.125,493.125
+property_type,Room in hotel,28,True,27,242.0,183.5,352.875,169.375
+property_type,Shared room,3,False,3,63.0,63.0,65.5,2.5
+property_type,Shared room in hostel,5,False,5,34.0,34.0,48.0,14.0
+property_type,Shipping container,2,False,2,171.5,171.5,171.5,0.0
+property_type,Tent,1,False,1,52.0,52.0,52.0,0.0
+property_type,Tiny home,39,True,38,168.51999999999998,147.5,204.25,56.75
+property_type,Treehouse,6,False,6,269.25,81.375,433.875,352.5
+property_type,Yurt,3,False,3,158.06,146.28,158.28,12.0
