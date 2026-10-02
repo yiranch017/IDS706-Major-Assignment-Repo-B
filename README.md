@@ -131,15 +131,24 @@ The documented local and Docker commands worked as expected.
 <img width="1037" height="479" alt="Screenshot 2026-10-01 at 22 42 20" src="https://github.com/user-attachments/assets/66eb1817-219c-45ab-a887-8f90cc32fcdf" />
 <img width="601" height="130" alt="Screenshot 2026-10-01 at 22 42 39" src="https://github.com/user-attachments/assets/1610afed-c89e-437d-97b8-998320c93291" />
 
-
 **Known unresolved issues:** none.
+
+Final Tester verification: **139 tests passed**.
+<img width="1023" height="44" alt="Screenshot 2026-10-01 at 23 20 11" src="https://github.com/user-attachments/assets/b3445605-9f56-4740-9d9a-427dea7239ef" />
+
 
 ## AI-assisted workflow and reflection
 
-> To be completed as the Architect, Builder and Tester stages finish.
+I used three separate AI roles for this project: Architect(ChatGPT), Builder(ClaudeCode), and Tester(ClaudeCode).
 
-- **Architect:** _(contribution, recommendations accepted/rejected)_
-- **Builder:** _(contribution, recommendations accepted/rejected)_
-- **Tester:** _(findings, fixes)_
-- **My independent verification:** _(what I checked myself and what I found)_
-- **Reflection:** _(what worked, what I would change)_
+The Architect helped define the project structure, analytical questions, data rules, output requirements, testing strategy, and Docker workflow. I reviewed the proposed architecture and made several implementation decisions before approving the plan.
+
+The Builder implemented the pipeline from the approved plan, including data validation, feature engineering, aggregation, analysis outputs, tests, and containerization. I manually reviewed the implementation and then ran the project myself on the real Asheville data.
+
+One AI recommendation I accepted was the use of fixed 30-day and 90-day calendar windows with an 80% coverage threshold. During manual testing, I verified that this rule behaved meaningfully on the real data: 284 listings started their calendar on July 3 and therefore had only 22/30 observed days, so they correctly failed the 30-day threshold while still passing the 90-day threshold.
+
+One AI recommendation I changed was the original plan to analyze calendar-based pricing. During my real-data smoke test, I discovered that the actual Asheville calendar file did not contain a price column. Rather than fabricate or substitute a different variable, I approved Amendment A1, removed the calendar-price and weekend-premium features, and refocused that part of the project on listing price and future availability.
+
+The independent Tester then reviewed the implementation against the amended plan rather than assuming the Builder was correct. The Tester identified gaps in figure-level testing and price parsing. I accepted those fixes, rejected lower-priority scope expansion such as fully pinning every dependency, and reran the final test suite locally. The final version passes 139 automated tests.
+
+I independently verified the project by running the real-data pipeline, inspecting the generated tables and figures, checking calendar coverage behavior, building the Docker image, and running the real pipeline through the container with mounted raw-data and output directories.
