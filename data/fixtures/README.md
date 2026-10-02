@@ -5,7 +5,7 @@ files. Snapshot date is `2026-06-25` (a **Thursday**), so for calendar offset `k
 snapshot, `k % 7 == 1` is Friday and `k % 7 == 2` is Saturday. Offsets 0..89 contain 26
 Fri/Sat dates and 64 Sun-Thu dates.
 
-Files: `listings.csv` (22 rows), `calendar.csv` (510 rows), `reviews.csv` (15 rows).
+Files: `listings.csv` (22 rows), `calendar.csv` (510 rows), `reviews.csv` (16 rows).
 Extra non-required columns (`name`, `adjusted_price`, `minimum_nights`) are included to prove
 extra columns are tolerated. Plain CSV is used so the files are reviewable; gzip loading is
 tested separately by compressing them in a temp dir.
@@ -40,7 +40,7 @@ Reporting thresholds (counts are **listings**, valid price or not):
 | 3 | 23 + 48 | one date short in both windows | 30d obs 23, 90d obs 71 -> all window metrics NA (not 0), weekend premium NA though group counts are large |
 | 4 | 90 dates, valid price only on exactly 8 Fri/Sat + 20 Sun-Thu dates; others blank / `$0.00` / `not a price` / `$-5.00`; all `available='f'` | exact minimum counts; prices count **regardless of availability**; invalid prices are not observations | weekend 120, weekday 100 -> abs 20, pct 0.2; counts 8 / 20; availability 0.0 (valid zero, not NA) |
 | 5 | as 4 but 7 weekend | | weekend premium NA (counts 7 / 20) but 90d median still computed |
-| 6 | as 4 but 19 weekday; two rows with `available='x'` | | premium NA (8 / 19); availability denominator excludes the 2 invalid rows (observed 90, valid-status 88) |
+| 6 | as 4 but 19 weekday; all `available='t'` except two rows (offsets 0, 1) with invalid `available='x'` | **coverage vs availability denominator**: a row with a valid date but invalid status still counts as an *observed date* for coverage, but is excluded from both numerator and denominator of the availability rate | premium NA (8 / 19); observed days 30 / 90 (coverage 1.0); availability rate 28/28 = 1.0 (30d) and 88/88 = 1.0 (90d) - **not** 28/30 or 88/90 |
 | 7-22 | no calendar rows | no coverage | `calendar_has_data` False; all window metrics NA |
 | 9999 | 5 rows | calendar ID not in listings | counted as unmatched; never adds a row |
 
