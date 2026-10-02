@@ -40,9 +40,21 @@ def test_parse_price_valid(raw, expected):
     assert parse_price(pd.Series([raw])).iloc[0] == pytest.approx(expected)
 
 
-@pytest.mark.parametrize("raw", ["abc", "", "   ", None, np.nan, "$0.00", "0", "$-10.00", "-5", "$"])
+@pytest.mark.parametrize(
+    "raw",
+    ["abc", "", "   ", None, np.nan, "$0.00", "0", "$-10.00", "-5", "$",
+     "inf", "Infinity", "-inf", "$1e400", "1e3", "$1E3", "1e-2", "$1.5e2", "NaN", "0x10",
+     "€100", "100 USD", "1.2.3", "+5", "9" * 400],   # non-finite, scientific, signed or non-plain -> invalid
+)
 def test_parse_price_invalid_becomes_missing(raw):
     assert pd.isna(parse_price(pd.Series([raw], dtype=object)).iloc[0])
+
+
+def test_parse_price_only_valid_entries_survive_in_a_mixed_series():
+    out = parse_price(pd.Series(["$1,250.50", "1e3", "inf", "$ 85 ", "$1e400", "$25,000.00"], dtype=object))
+    assert out.iloc[[0, 3, 5]].tolist() == [1250.5, 85.0, 25000.0]
+    assert out.iloc[[1, 2, 4]].isna().all()
+    assert np.isfinite(out.dropna()).all()
 
 
 # ------------------------------------------------------------- amenity parsing
@@ -94,6 +106,15 @@ def test_normalize_ids():
     assert out.tolist()[:3] == [1, 7, 1]
     assert out.iloc[3:7].isna().all()
     assert out.iloc[7] == 123456789012
+
+
+def test_normalize_ids_real_scale_airbnb_ids_keep_full_precision():
+    # Current Airbnb ids are ~1.5e18, above 2**53: they must not pass through float64.
+    big = ["1500000000000000001", "1500000000000000003", "1500000000000000005"]
+    out = normalize_ids(pd.Series(big + ["abc"]))                 # an invalid id in the same column
+    assert out.iloc[:3].tolist() == [1500000000000000001, 1500000000000000003, 1500000000000000005]
+    assert out.iloc[3] is pd.NA or pd.isna(out.iloc[3])
+    assert out.iloc[:3].is_unique
 
 
 # ---------------------------------------------------------------------- loading

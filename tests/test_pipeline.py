@@ -1,6 +1,9 @@
 """Summary tables, figures and end-to-end fixture pipeline (src/analysis.py, src/pipeline.py)."""
 import gzip
 import shutil
+import subprocess
+import sys
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -10,6 +13,15 @@ from src.analysis import (
     build_host_type_summary,
     build_neighborhood_summary,
     build_room_property_summary,
+)
+from src import analysis, features
+from src.analysis import (
+    MISSING_LABEL,
+    build_data_quality_summary,
+    fig1_data,
+    fig2_data,
+    fig3_data,
+    fig4_data,
 )
 from src.data import DataValidationError, DuplicateCalendarKeyError
 from src.pipeline import REQUIRED_OUTPUTS, run_stage1
@@ -204,3 +216,120 @@ def test_figure_axis_scales_are_presentation_only():
 
     assert PRICE_AXIS_SCALE == {"fig1": "log", "fig2": "log", "fig4": "log"}   # figure 3 stays linear
     # scale is a plotting choice: the analytical table keeps every listing and its raw price
+
+
+# ------------------------------------------------- missing-category reporting
+def test_missing_category_is_listed_but_never_report_eligible():
+    rows = [{"neighbourhood_cleansed": None, "property_type": None, "room_type": None,
+             "listing_price": 100.0 + i} for i in range(12)]           # 12 >= 10 missing rows
+    rows += [{"neighbourhood_cleansed": "A", "property_type": "P", "room_type": "R",
+              "listing_price": 50.0 + i} for i in range(10)]
+    df = pd.DataFrame(rows)
+    nb = build_neighborhood_summary(df).set_index("neighbourhood_cleansed")
+    assert nb.loc[MISSING_LABEL, "n_listings"] == 12                   # visible for transparency
+    assert not bool(nb.loc[MISSING_LABEL, "report_eligible"]) and bool(nb.loc["A", "report_eligible"])
+    rp = build_room_property_summary(df)
+    for variable in ("property_type", "room_type"):
+        row = rp[(rp.category_variable == variable) & (rp.category_value == MISSING_LABEL)].iloc[0]
+        assert row.n_listings == 12 and not bool(row.report_eligible)
+    assert list(fig3_data(df)["neighbourhood_cleansed"]) == ["A"]      # never in the comparison figure
+    assert MISSING_LABEL not in set(fig1_data(df)["room_type"])
+
+
+# ----------------------------------------------------- figure data selection
+def figure_df():
+    return pd.DataFrame({
+        "neighbourhood_cleansed": ["Big"] * 10 + ["Small"] * 9,
+        "room_type": ["Entire home/apt"] * 19,
+        "listing_price": [100.0 + i for i in range(19)],
+        "amenity_count": pd.array(list(range(19)), dtype="Int64"),
+        "beds": [7.0] * 19,
+        "availability_rate_30d": [0.1] * 19,
+        "availability_rate_90d": [0.5 + (i % 3) / 10 for i in range(19)],
+    })
+
+
+def test_fig2_uses_amenity_count_against_listing_price():
+    df = figure_df()
+    df.loc[0, "amenity_count"] = pd.NA
+    df.loc[1, "listing_price"] = None
+    d = fig2_data(df)
+    assert len(d) == 17                                                # either missing -> excluded
+    kept = df.dropna(subset=["amenity_count", "listing_price"])
+    assert d["x"].tolist() == kept["amenity_count"].astype(float).tolist()
+    assert d["y"].tolist() == kept["listing_price"].tolist()
+    assert (d["x"] != df["beds"].iloc[0]).any()                       # not beds, not another column
+
+
+def test_fig3_includes_only_neighborhoods_with_at_least_10_listings():
+    d = fig3_data(figure_df())
+    assert list(d["neighbourhood_cleansed"]) == ["Big"] and int(d["n_listings"].iloc[0]) == 10
+    df = figure_df()
+    df.loc[df.neighbourhood_cleansed == "Small", "neighbourhood_cleansed"] = "Big"   # now 19
+    assert list(fig3_data(df)["neighbourhood_cleansed"]) == ["Big"]
+    df.loc[0, "neighbourhood_cleansed"] = "Tiny"                       # Big 18, Tiny 1
+    assert "Tiny" not in set(fig3_data(df)["neighbourhood_cleansed"])
+
+
+def test_fig4_uses_listing_price_against_availability_rate_90d_and_drops_missing():
+    df = figure_df()
+    df.loc[2, "availability_rate_90d"] = None
+    df.loc[3, "listing_price"] = None
+    d = fig4_data(df)
+    kept = df.dropna(subset=["availability_rate_90d", "listing_price"])
+    assert len(d) == 17
+    assert d["x"].tolist() == kept["listing_price"].tolist()
+    assert d["y"].tolist() == kept["availability_rate_90d"].tolist()   # 90d, not the 30d column
+    assert d["y"].notna().all() and d["x"].notna().all()
+
+
+def _plotted(monkeypatch, builder, df):
+    """Run a figure builder and capture the matplotlib figure instead of saving it."""
+    captured = {}
+
+    def fake_finish(fig, path):
+        captured["fig"] = fig
+        return path
+
+    monkeypatch.setattr(analysis, "_finish", fake_finish)
+    builder(df, Path("unused.png"))
+    return captured["fig"].axes[0]
+
+
+def test_drawn_figures_use_the_selected_data(monkeypatch):
+    df = figure_df()
+    df.loc[0, "amenity_count"] = pd.NA
+    df.loc[2, "availability_rate_90d"] = None
+    ax2 = _plotted(monkeypatch, analysis._fig2, df)
+    assert ax2.collections[0].get_offsets().data.tolist() == fig2_data(df)[["x", "y"]].values.tolist()
+    ax4 = _plotted(monkeypatch, analysis._fig4, df)
+    assert ax4.collections[0].get_offsets().data.tolist() == fig4_data(df)[["x", "y"]].values.tolist()
+    ax3 = _plotted(monkeypatch, analysis._fig3, df)
+    assert [t.get_text() for t in ax3.get_yticklabels()] == ["Big (n=10)"]
+    assert ax2.get_yscale() == "log" and ax4.get_xscale() == "log" and ax3.get_xscale() == "linear"
+
+
+# --------------------------------------------- single source of truth for coverage
+def test_data_quality_coverage_counts_use_the_shared_threshold_rule(final, monkeypatch):
+    final = final.reset_index()
+    diag = {"raw_listing_rows": len(final)}
+    base = dict(zip(*build_data_quality_summary(diag, final)[["metric", "value"]].values.T))
+    assert base["n_listings_passing_calendar_coverage_90d"] == 4
+    # Raising the shared rule must change the data-quality counts: no private copy of 80% in analysis.py
+    monkeypatch.setattr(features, "MIN_COVERAGE_PCT", 100)
+    strict = dict(zip(*build_data_quality_summary(diag, final)[["metric", "value"]].values.T))
+    assert strict["n_listings_passing_calendar_coverage_30d"] == 3      # listing 2 (24/30) drops out
+    assert strict["n_listings_passing_calendar_coverage_90d"] == 3      # listing 2 (72/90) drops out
+
+
+# --------------------------------------------------------- main.py error path
+def test_main_exits_nonzero_with_clear_message_when_raw_inputs_are_missing(tmp_path):
+    root = Path(__file__).resolve().parents[1]
+    (tmp_path / "src").mkdir()
+    for f in (root / "src").glob("*.py"):
+        shutil.copy(f, tmp_path / "src" / f.name)
+    shutil.copy(root / "main.py", tmp_path / "main.py")                # empty data/raw in this copy
+    r = subprocess.run([sys.executable, "main.py"], cwd=tmp_path, capture_output=True, text=True)
+    assert r.returncode == 1
+    assert "Missing raw input file(s)" in r.stdout and "listings.csv.gz" in r.stdout
+    assert not (tmp_path / "outputs").exists()                         # nothing half-written

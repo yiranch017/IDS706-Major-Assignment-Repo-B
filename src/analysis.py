@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
+from src.features import meets_coverage_threshold  # noqa: E402
+
 MIN_REPORT_N = 10  # LOCKED: minimum listings per neighborhood / property type for reporting
 MISSING_LABEL = "(missing)"  # presentation label only; the analytical table keeps true NA
 
@@ -38,7 +40,8 @@ def _price_stats(df: pd.DataFrame, column: str, apply_threshold: bool) -> pd.Dat
         rows.append({
             column: value,
             "n_listings": len(grp),                      # eligibility counts ALL listings
-            "report_eligible": (len(grp) >= MIN_REPORT_N) if apply_threshold else True,
+            # the "(missing)" bucket is shown for transparency but is never a reportable category
+            "report_eligible": value != MISSING_LABEL and ((len(grp) >= MIN_REPORT_N) if apply_threshold else True),
             "n_valid_price": len(prices),
             "median_price": prices.median() if len(prices) else np.nan,
             "q1_price": q1 if len(prices) else np.nan,
@@ -102,8 +105,9 @@ def build_data_quality_summary(diag: dict, final: pd.DataFrame) -> pd.DataFrame:
     metrics["amenity_parse_failures"] = int(final["amenity_parse_failed"].sum())
     metrics["amenity_count_missing"] = int(final["amenity_count"].isna().sum())
     metrics["host_type_missing"] = int(final["host_type"].isna().sum())
-    metrics.update(count_prop("listings_passing_calendar_coverage_30d", final["calendar_coverage_rate_30"] * 100 >= 80))
-    metrics.update(count_prop("listings_passing_calendar_coverage_90d", final["calendar_coverage_rate_90"] * 100 >= 80))
+    for n_days in (30, 90):   # single source of truth for the coverage rule: features.meets_coverage_threshold
+        passing = meets_coverage_threshold(final[f"calendar_observed_days_{n_days}"], n_days)
+        metrics.update(count_prop(f"listings_passing_calendar_coverage_{n_days}d", passing))
     # Two distinct review-coverage concepts (listing 3 in the fixtures separates them):
     metrics["prop_listings_with_review_on_or_before_snapshot"] = (
         float(final["has_review_on_or_before_snapshot"].mean()) if n else np.nan
@@ -125,9 +129,33 @@ def _no_data(ax, message="No data available for this figure"):
     ax.set_yticks([])
 
 
+# Data-selection layer: exactly what each figure plots, kept separate so it can be tested directly.
+def fig1_data(df):
+    """Figure 1: listing_price grouped by room_type (valid price and known room type only)."""
+    return df.dropna(subset=["listing_price", "room_type"])
+
+
+def fig2_data(df):
+    """Figure 2: x = amenity_count, y = listing_price (rows with both present)."""
+    d = df.dropna(subset=["listing_price", "amenity_count"])
+    return pd.DataFrame({"x": d["amenity_count"].astype(float), "y": d["listing_price"].astype(float)})
+
+
+def fig3_data(df):
+    """Figure 3: report-eligible neighborhoods (n >= 10, never "(missing)") with a valid-price median."""
+    s = build_neighborhood_summary(df)
+    return s[s["report_eligible"] & (s["n_valid_price"] > 0)].sort_values("median_price")
+
+
+def fig4_data(df):
+    """Figure 4: x = listing_price, y = availability_rate_90d (rows with both present)."""
+    d = df.dropna(subset=["listing_price", "availability_rate_90d"])
+    return pd.DataFrame({"x": d["listing_price"].astype(float), "y": d["availability_rate_90d"].astype(float)})
+
+
 def _fig1(df, path):
     fig, ax = plt.subplots(figsize=(8, 5))
-    d = df.dropna(subset=["listing_price", "room_type"])
+    d = fig1_data(df)
     if d.empty:
         _no_data(ax)
     else:
@@ -143,11 +171,11 @@ def _fig1(df, path):
 
 def _fig2(df, path):
     fig, ax = plt.subplots(figsize=(8, 5))
-    d = df.dropna(subset=["listing_price", "amenity_count"])
+    d = fig2_data(df)
     if d.empty:
         _no_data(ax)
     else:
-        ax.scatter(d["amenity_count"].astype(float), d["listing_price"], alpha=0.4, s=14)
+        ax.scatter(d["x"], d["y"], alpha=0.4, s=14)
         ax.set_yscale(PRICE_AXIS_SCALE["fig2"])
         ax.set_xlabel("Number of listed amenities")
         ax.set_ylabel(f"Listing price (USD, {PRICE_AXIS_SCALE['fig2']} scale)")
@@ -157,8 +185,7 @@ def _fig2(df, path):
 
 def _fig3(df, path):
     fig, ax = plt.subplots(figsize=(8, 6))
-    s = build_neighborhood_summary(df)
-    s = s[s["report_eligible"] & (s["n_valid_price"] > 0)].sort_values("median_price")
+    s = fig3_data(df)
     if s.empty:
         _no_data(ax, f"No neighborhood has at least {MIN_REPORT_N} listings")
     else:
@@ -175,11 +202,11 @@ def _fig3(df, path):
 
 def _fig4(df, path):
     fig, ax = plt.subplots(figsize=(8, 5))
-    d = df.dropna(subset=["listing_price", "availability_rate_90d"])
+    d = fig4_data(df)
     if d.empty:
         _no_data(ax)
     else:
-        ax.scatter(d["listing_price"], d["availability_rate_90d"], alpha=0.4, s=14)
+        ax.scatter(d["x"], d["y"], alpha=0.4, s=14)
         ax.set_xscale(PRICE_AXIS_SCALE["fig4"])
         ax.set_xlabel(f"Listing price (USD, {PRICE_AXIS_SCALE['fig4']} scale)")
         ax.set_ylabel("Forward availability rate, next 90 days")
