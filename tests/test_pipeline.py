@@ -197,3 +197,10 @@ def test_duplicate_calendar_rows_are_a_hard_failure(raw_dir, tmp_path):
 
 def test_main_entry_point_exists():
     import main  # noqa: F401  (thin wrapper; importing must not run the pipeline)
+
+
+def test_figure_axis_scales_are_presentation_only():
+    from src.analysis import PRICE_AXIS_SCALE
+
+    assert PRICE_AXIS_SCALE == {"fig1": "log", "fig2": "log", "fig4": "log"}   # figure 3 stays linear
+    # scale is a plotting choice: the analytical table keeps every listing and its raw price

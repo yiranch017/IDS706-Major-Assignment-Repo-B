@@ -12,9 +12,10 @@ import pandas as pd  # noqa: E402
 MIN_REPORT_N = 10  # LOCKED: minimum listings per neighborhood / property type for reporting
 MISSING_LABEL = "(missing)"  # presentation label only; the analytical table keeps true NA
 
-# Presentation choices, deliberately NOT locked: set to "log" after reviewing the real
-# distributions (see README / handoff). Observations are never removed either way.
-PRICE_AXIS_SCALE = {"fig1": "linear", "fig2": "linear"}
+# Presentation-only axis scales, chosen after reviewing the real price distributions (heavily
+# right-skewed). Scale never changes the data: no observation is removed, trimmed or winsorized.
+# Figure 3 stays linear.
+PRICE_AXIS_SCALE = {"fig1": "log", "fig2": "log", "fig4": "log"}
 
 FIGURE_FILES = {
     "fig1": "01_price_by_room_type.png",
@@ -167,7 +168,7 @@ def _fig3(df, path):
                     fmt="none", ecolor="black", capsize=3)
         ax.set_yticks(y)
         ax.set_yticklabels([f"{r.neighbourhood_cleansed} (n={r.n_listings})" for r in s.itertuples()])
-        ax.set_xlabel("Median listing price (USD); bars show Q1-Q3")
+        ax.set_xlabel("Median listing price (USD); whiskers show Q1-Q3")
     ax.set_title(f"Neighborhood prices (neighborhoods with >= {MIN_REPORT_N} listings)")
     return _finish(fig, path)
 
@@ -179,7 +180,8 @@ def _fig4(df, path):
         _no_data(ax)
     else:
         ax.scatter(d["listing_price"], d["availability_rate_90d"], alpha=0.4, s=14)
-        ax.set_xlabel("Listing price (USD)")
+        ax.set_xscale(PRICE_AXIS_SCALE["fig4"])
+        ax.set_xlabel(f"Listing price (USD, {PRICE_AXIS_SCALE['fig4']} scale)")
         ax.set_ylabel("Forward availability rate, next 90 days")
         ax.set_ylim(-0.02, 1.02)
     ax.set_title("Forward availability (90 days) vs listing price")
