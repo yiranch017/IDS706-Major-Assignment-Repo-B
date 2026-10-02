@@ -20,6 +20,40 @@ If real-data inspection reveals that a locked threshold, rule, or assumption cre
 
 ---
 
+## 1A. Amendment A1 — no calendar price field (project-owner-approved)
+
+> **USER-REVIEWED DECISION — LOCKED (Amendment A1)**
+
+This amendment was made **after manual smoke testing**, which revealed that the actual Asheville
+**2026-06-25** `calendar.csv.gz` schema contains **no price field** (no `price` and no
+`adjusted_price`). Its columns are `listing_id`, `date`, `available`, `minimum_nights`,
+`maximum_nights`. The original plan assumed calendar prices existed. This was a
+project-owner-approved change based on the real data; calendar prices are not fabricated,
+reconstructed or substituted.
+
+What changed (smallest consistent change):
+
+- **Price measure:** `listing_price` from `listings.csv.gz` is the project's only price measure.
+- **Calendar role:** the calendar is used for forward availability only
+  (`availability_rate_30d`, `availability_rate_90d`), with the same fixed windows, 80% coverage
+  rule, missingness rules and the "availability is not occupancy" caveat.
+- **Removed features:** `calendar_median_price_30d/90d`, `calendar_price_iqr_30d/90d`,
+  `weekend_median_price_90d`, `weekday_median_price_90d`, `weekend_premium_abs_90d`,
+  `weekend_premium_pct_90d`, `weekend_valid_price_count_90d`, `weekday_valid_price_count_90d`,
+  `calendar_valid_price_days_30/90`, and the calendar price parsing/validation rules. The
+  Friday/Saturday weekend definition and the 8/20 weekend thresholds no longer exist.
+- **RQ2** is now the relationship between listing price and future availability.
+- **Figure 4** is now `listing_price` (x) versus `availability_rate_90d` (y).
+- `minimum_nights` / `maximum_nights` stay in the raw file but are **not** used in Stage 1 and are
+  not a substitute for price. No new analysis was added to replace the removed features.
+
+Sections whose content was removed keep their heading with a short "removed" stub so section
+numbers and cross-references stay stable. The acceptance invariants (§24), the test strategy
+(§23) and the definition of done (§32) below describe the **revised** specification, which is
+what the Tester evaluates.
+
+---
+
 ## 2. Project purpose
 
 The project will study the Asheville Airbnb market by examining how listing characteristics, neighborhood, pricing, future availability, recent review activity, and host portfolio structure relate to one another.
@@ -60,16 +94,17 @@ The amenities sub-question is:
 
 This is an association question. The project must not claim that more amenities are objectively better or more optimal for consumers.
 
-### RQ2 — Dynamic pricing and future availability
+### RQ2 — Listing price and future availability
 
-How do future quoted prices vary across listings, including:
+How does forward availability over the next 30 and 90 days vary across listings, and how does it
+relate descriptively to listing price?
 
-- 30-day and 90-day median future quoted price;
-- 30-day and 90-day price variability;
-- Friday/Saturday weekend price premium; and
-- 30-day and 90-day forward availability?
+- 30-day and 90-day forward availability rate; and
+- the relationship between `listing_price` and `availability_rate_90d`, with room type or
+  neighborhood used where helpful for interpretation.
 
-How does forward availability relate to future quoted price?
+This is a descriptive association. Forward availability is not occupancy, and the calendar
+provides no price (see Amendment A1).
 
 ### RQ3 — Recent review activity
 
@@ -82,7 +117,6 @@ Review activity is only a proxy. It must not be interpreted as a direct count of
 How do single-listing and multi-listing hosts differ descriptively in relevant listing characteristics such as:
 
 - listing price;
-- future pricing;
 - future availability;
 - amenity count;
 - room type; and
@@ -270,8 +304,6 @@ Responsible for:
 - fixed review-window features;
 - calendar coverage features;
 - calendar availability features;
-- calendar pricing features;
-- weekend premium;
 - calendar aggregation;
 - review aggregation.
 
@@ -560,15 +592,15 @@ Minimum required columns:
 listing_id
 date
 available
-price
 ~~~
+
+Additional calendar columns (such as `minimum_nights`, `maximum_nights`) may be present and are ignored. The real 2026-06-25 calendar has no price field (Amendment A1).
 
 Required checks:
 
 - dates parse successfully where present;
 - listing_id is normalized to the same key type used for listings.id;
 - each `(listing_id, date)` should be unique;
-- price parsing failures are counted;
 - invalid availability values are counted;
 - calendar dates used in future windows are assessed relative to SNAPSHOT_DATE.
 
@@ -668,20 +700,10 @@ Descriptive price summaries should emphasize median, quartiles, and IQR.
 
 Any later log transformation, winsorization, trimming, or robust-model treatment belongs to the conditional modeling stage and requires review.
 
-### 11.5 Calendar price
+### 11.5 Calendar price — removed (Amendment A1)
 
-Parse calendar price independently from listing price.
-
-A valid quoted calendar price is:
-
-- parseable numeric;
-- positive.
-
-Invalid calendar prices do not count as valid price observations.
-
-Calendar price metrics are based on valid quoted prices regardless of whether the corresponding date is marked available.
-
-This keeps future pricing behavior conceptually separate from availability.
+The real calendar file has no price field, so there is no calendar price parsing or calendar
+price feature. `listing_price` (§11.4) is the only price measure.
 
 ### 11.6 Amenities
 
@@ -771,10 +793,7 @@ Reason: zero observed recent reviews is meaningful, but there is no last-review 
 
 If a listing fails the required calendar-coverage threshold for a window:
 
-- availability rate for that window = NA;
-- calendar median price for that window = NA;
-- calendar price IQR for that window = NA;
-- any other dynamic-price metric tied to that window = NA.
+- availability rate for that window = NA.
 
 Do not substitute zero.
 
@@ -915,6 +934,8 @@ number of observed window dates with valid availability status
 
 Do not use expected_dates as the denominator because that would implicitly treat missing dates as unavailable.
 
+A row with a valid date but an invalid or missing `available` value **counts as an observed date for coverage**, but is excluded from both the numerator and the denominator of the availability rate. Coverage and the availability denominator are deliberately separate.
+
 If availability status itself is unexpectedly missing or malformed at a material rate, report the problem before changing the rule.
 
 ---
@@ -932,8 +953,6 @@ calendar_coverage_rate_30
 calendar_expected_days_90
 calendar_observed_days_90
 calendar_coverage_rate_90
-calendar_valid_price_days_30
-calendar_valid_price_days_90
 calendar_has_data
 ~~~
 
@@ -954,109 +973,10 @@ NA
 
 Interpretation must always be "forward availability," not occupancy.
 
-### 15.3 Median future quoted price
+### 15.3–15.5 Calendar price, price variability and weekend premium — removed (Amendment A1)
 
-For each qualifying window, use all valid positive quoted calendar prices inside the window regardless of available status.
-
-Required:
-
-~~~text
-calendar_median_price_30d
-calendar_median_price_90d
-~~~
-
-If coverage is below 80%, return NA.
-
-If there are no valid positive quoted prices despite sufficient date coverage, return NA and expose the valid-price count in QA.
-
-### 15.4 Future price variability
-
-Use IQR as the primary robust variability measure:
-
-~~~text
-calendar_price_iqr_N =
-Q75(valid quoted calendar price in window N)
--
-Q25(valid quoted calendar price in window N)
-~~~
-
-Required:
-
-~~~text
-calendar_price_iqr_30d
-calendar_price_iqr_90d
-~~~
-
-Reason: Airbnb quoted prices may contain legitimate event/holiday extremes, and IQR is less sensitive to them than standard deviation.
-
-Do not delete extreme positive calendar prices simply to reduce variability.
-
-### 15.5 Weekend-price premium
-
-> **USER-REVIEWED DECISION — LOCKED**
-
-Define weekend nights as:
-
-~~~text
-Friday
-Saturday
-~~~
-
-Use the 90-day future window.
-
-The 90-day window must first satisfy the 80% calendar-coverage rule.
-
-Within that window, use valid positive quoted prices regardless of availability status.
-
-Define:
-
-~~~text
-weekend_median_price_90d =
-median(valid Friday/Saturday quoted prices)
-
-weekday_median_price_90d =
-median(valid Sunday-Thursday quoted prices)
-~~~
-
-Minimum valid observations:
-
-~~~text
-weekend prices >= 8
-weekday prices >= 20
-~~~
-
-If either threshold fails, both weekend-premium measures must be NA.
-
-Absolute premium:
-
-~~~text
-weekend_premium_abs_90d =
-weekend_median_price_90d
--
-weekday_median_price_90d
-~~~
-
-Percentage premium:
-
-~~~text
-weekend_premium_pct_90d =
-(weekend_median_price_90d - weekday_median_price_90d)
-/
-weekday_median_price_90d
-~~~
-
-Keep both measures in the analytical table.
-
-Use the percentage form as the primary descriptive measure.
-
-Required transparency counts:
-
-~~~text
-weekend_valid_price_count_90d
-weekday_valid_price_count_90d
-~~~
-
-The Builder must not silently change the 8/20 thresholds.
+The real calendar has no price field, so calendar median price, calendar price IQR, weekend and
+weekday median prices, weekend premiums and their valid-price counts are not part of the project.
 
 ---
 
@@ -1259,26 +1179,22 @@ Use robust summaries such as median and IQR.
 
 Do not delete extreme positive prices.
 
-### Module B — Dynamic pricing and future availability
+### Module B — Future availability and listing price
 
 Focus on:
 
-- calendar_median_price_30d;
-- calendar_median_price_90d;
-- calendar_price_iqr_30d;
-- calendar_price_iqr_90d;
-- weekend_premium_pct_90d;
 - availability_rate_30d;
-- availability_rate_90d.
+- availability_rate_90d;
+- listing_price (valid values only).
 
-The required availability-versus-price figure should use:
+The required availability-versus-price figure uses:
 
 ~~~text
-x = calendar_median_price_90d
+x = listing_price
 y = availability_rate_90d
 ~~~
 
-**ARCHITECT IMPLEMENTATION DETAIL:** These variables share the same future horizon and therefore provide a cleaner descriptive comparison than mixing a snapshot listing price with a 90-day calendar feature.
+**ARCHITECT IMPLEMENTATION DETAIL:** Only rows with a valid `listing_price` and a nonmissing `availability_rate_90d` (coverage rule satisfied) appear in the figure. The relationship is descriptive only.
 
 ### Module C — Recent review activity
 
@@ -1298,7 +1214,6 @@ Do not infer bookings directly from review counts.
 Compare single-listing and multi-listing hosts on relevant measures such as:
 
 - listing price;
-- calendar median price;
 - future availability;
 - amenity count;
 - room type;
@@ -1350,7 +1265,7 @@ Must include compact metric/value diagnostics covering at least:
 - amenity parse failures;
 - count/proportion passing 30-day calendar-coverage threshold;
 - count/proportion passing 90-day calendar-coverage threshold;
-- count/proportion with calculable weekend premium.
+- count of calendar rows with invalid `available` values.
 
 #### neighborhood_summary.csv
 
@@ -1397,7 +1312,6 @@ At minimum compare single and multi hosts on relevant metrics such as:
 - median listing price;
 - median amenity count;
 - median availability_rate_90d when available;
-- median calendar_median_price_90d when available;
 - median reviews_last_90d;
 - relevant room-type composition where practical.
 
@@ -1446,16 +1360,16 @@ Include only neighborhoods with at least 10 listings.
 
 Emphasize median and spread.
 
-### Figure 4 — Future availability versus price
+### Figure 4 — Future availability versus listing price
 
 Use:
 
 ~~~text
-x = calendar_median_price_90d
+x = listing_price
 y = availability_rate_90d
 ~~~
 
-Include only rows where both features are nonmissing under the locked coverage rules.
+Include only rows where both are nonmissing (valid listing price; 90-day coverage rule satisfied).
 
 Do not label low availability as high occupancy.
 
@@ -1466,8 +1380,7 @@ A fifth figure is optional.
 It may be added only if Stage 1 exploration reveals a meaningful result around:
 
 - host structure;
-- recent review activity;
-- weekend pricing.
+- recent review activity.
 
 Do not add a fifth figure merely to reach a target count.
 
@@ -1534,16 +1447,14 @@ Verify:
 
 Below-threshold derived calendar metrics must be NA rather than zero.
 
-#### Weekend premium thresholds
+#### Coverage versus availability denominator
 
-Verify:
+Verify that a row with a valid date but an invalid `available` value:
 
-- 8 valid weekend prices + 20 valid weekday prices + sufficient coverage -> calculated;
-- 7 weekend + 20 weekday -> NA;
-- 8 weekend + 19 weekday -> NA;
-- insufficient 90-day coverage -> NA regardless of group counts.
+- counts as an observed calendar date for coverage; and
+- is excluded from both the numerator and the denominator of the availability rate.
 
-Verify both absolute and percentage formulas.
+Verify that zero availability (all valid statuses unavailable) is a real value `0.0`, not NA.
 
 ### 23.2 Aggregation tests
 
@@ -1578,8 +1489,6 @@ Insufficient calendar coverage:
 
 ~~~text
 availability_rate = NA
-calendar_median_price = NA
-calendar_price_iqr = NA
 ~~~
 
 not zero.
@@ -1652,7 +1561,7 @@ The Builder and Tester must treat the following as correctness requirements.
 11. All required output files are generated successfully.
 12. Every time-window calculation uses `SNAPSHOT_DATE = 2026-06-25`.
 13. Calendar coverage threshold is 80% unless approval is obtained to change it.
-14. Weekend premium uses Friday/Saturday, the 90-day window, >=8 valid weekend prices, and >=20 valid weekday prices.
+14. `listing_price` is the only price measure; the analytical table contains no calendar price features, and calendar-derived features are limited to coverage/QA fields and availability rates (Amendment A1).
 15. Final neighborhood reporting uses only neighborhoods with n >= 10.
 16. Reported property-type comparisons use only property types with n >= 10.
 17. Plausible positive price extremes are not automatically deleted.
@@ -1799,15 +1708,13 @@ Not every stay produces a review.
 
 Recent review counts and recency are rough activity signals, not actual stay counts.
 
-### 28.3 Listing price and calendar price are different concepts
+### 28.3 Price comes from listings only
 
-`listing_price` is a snapshot listing-level quoted price used mainly for cross-sectional comparisons.
+`listing_price` is a snapshot listing-level quoted price used for cross-sectional comparisons.
 
-`calendar_median_price_Nd` is derived from dated future quoted prices and describes future pricing behavior.
+The calendar file in this snapshot contains no price, so nothing here describes how prices vary by date, season or weekday. The project makes no dynamic-pricing claims, and `minimum_nights` is not a price substitute.
 
-Do not silently substitute one for the other.
-
-### 28.4 Calendar prices are quoted prices
+### 28.4 Listing prices are quoted prices
 
 They are not transaction prices and do not prove what guests actually paid.
 
@@ -1839,7 +1746,7 @@ Luxury, large-property, or event-driven prices should not be deleted merely beca
 
 ### 28.10 Coverage thresholds are project rules
 
-The 80% calendar-coverage threshold and 8/20 weekend/weekday observation rules are explicit project quality rules, not universal truths.
+The 80% calendar-coverage threshold is an explicit project quality rule, not a universal truth.
 
 ### 28.11 Reporting thresholds affect presentation, not the dataset
 
@@ -1874,7 +1781,7 @@ A downstream Builder should implement in this order.
 - encode temporal-boundary tests;
 - encode missingness tests;
 - encode calendar-coverage tests;
-- encode weekend-premium tests;
+- encode coverage-vs-availability-denominator tests;
 - encode reporting-threshold tests;
 - encode join invariants.
 
@@ -1899,9 +1806,7 @@ A downstream Builder should implement in this order.
 - apply fixed 30/90-day windows;
 - compute coverage metrics;
 - apply 80% gate;
-- compute availability;
-- compute median/IQR future prices;
-- compute 90-day weekend premiums using the locked 8/20 thresholds.
+- compute availability from valid `available` values only.
 
 ### Phase 6 — Review features
 
@@ -2132,7 +2037,7 @@ The optional fifth figure is not required.
 - amenities parsing tests pass;
 - temporal-window boundary tests pass;
 - 80% calendar threshold tests pass;
-- 8/20 weekend threshold tests pass;
+- coverage-versus-availability-denominator tests pass;
 - variable-specific missingness tests pass;
 - aggregation uniqueness tests pass;
 - join invariants pass;
@@ -2162,7 +2067,7 @@ The optional fifth figure is not required.
 
 - no occupancy claims are made from availability;
 - no booking-count claims are made from reviews;
-- listing price and calendar-derived prices remain conceptually separate;
+- listing price is the only price measure; no calendar price is fabricated or substituted;
 - statistically extreme but valid positive prices are not automatically deleted;
 - small neighborhood/property categories are filtered only from reporting;
 - no excluded-scope feature is added without approval.
@@ -2181,15 +2086,12 @@ The following choices were explicitly made or approved by the project owner and 
 4. Future windows are half-open: snapshot <= date < snapshot + N days.
 5. Review windows use: snapshot - N days < review_date <= snapshot.
 6. Distinguish zero activity from missing information.
-7. Listing price is for cross-sectional listing analysis; calendar prices are separate dynamic-price features.
-8. Use all valid quoted calendar prices for dynamic-price calculations rather than only available dates.
+7. Listing price is the project's only price measure; the 2026-06-25 calendar has no price field (Amendment A1).
+8. (Removed by Amendment A1: calendar price features no longer exist.)
 9. Calendar coverage must be measured explicitly.
 10. Require >=80% calendar coverage before 30/90-day calendar-derived analytical features are valid.
 11. Below-threshold calendar features are NA, not zero.
-12. Weekend means Friday/Saturday.
-13. Keep both absolute and percentage weekend premium.
-14. Main weekend analysis uses percentage premium.
-15. Weekend premium requires 90-day coverage plus >=8 valid weekend and >=20 valid weekday prices.
+12.-15. (Removed by Amendment A1: weekend-premium rules no longer exist.)
 16. Use only `amenity_count`; no individual amenity indicators.
 17. Parse amenities as a list rather than counting delimiters.
 18. Use `neighbourhood_cleansed` as the main location variable.
