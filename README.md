@@ -112,9 +112,24 @@ with the headless `Agg` backend, so no display is needed. To run the tests in th
 - The 80 % coverage rule and n ≥ 10 reporting thresholds are project rules, not universal truths.
 - All Stage 1 relationships are descriptive, not causal.
 
-## Manual smoke test (project owner — to be completed before the Tester stage)
+## Manual smoke test 
+I completed the manual smoke test on October 1, 2026 on macOS.
 
-> **Not yet performed.** Fill this in after running the checklist in `docs/plan.md` §30.
+I first verified the local setup by installing the dependencies from `requirements.txt` and running the full automated test suite. `python -m pytest -v` passed all 115 tests.
+<img width="1026" height="607" alt="Screenshot 2026-10-01 at 22 39 40" src="https://github.com/user-attachments/assets/c88c10c4-84ef-4c58-9bc8-15544f09fcc7" />
+
+I then ran `python main.py` using the real Asheville June 25, 2026 Inside Airbnb files. The pipeline successfully processed 2,865 listings, 1,046,820 calendar rows, and 345,241 review rows, and generated the required analytical dataset, four summary tables, and four figures.
+
+During the real-data test, I found that the Asheville calendar file did not contain a price column even though the original architecture assumed it would. I reviewed the actual schema and approved an amendment that removed calendar-price features and kept the calendar analysis focused on forward availability. I reran the tests after this revision and confirmed that all 115 passed.
+
+I also inspected the calendar-coverage results. 284 listings had calendar data starting on July 3 rather than the June 25 snapshot date, giving them 22/30 observed days. They correctly failed the predefined 80% 30-day coverage threshold while still passing the 90-day threshold with 82/90 observed days.
+
+Finally, I built the Docker image successfully and ran the real Stage 1 pipeline using a read-only mounted `data/raw` directory and writable `outputs` directory. The container completed successfully and regenerated the required outputs on the host.
+
+The documented local and Docker commands worked as expected.
+<img width="1037" height="479" alt="Screenshot 2026-10-01 at 22 42 20" src="https://github.com/user-attachments/assets/66eb1817-219c-45ab-a887-8f90cc32fcdf" />
+<img width="601" height="130" alt="Screenshot 2026-10-01 at 22 42 39" src="https://github.com/user-attachments/assets/1610afed-c89e-437d-97b8-998320c93291" />
+
 
 - [ ] Date performed / environment:
 - [ ] `python -m pip install -r requirements.txt` succeeded:
