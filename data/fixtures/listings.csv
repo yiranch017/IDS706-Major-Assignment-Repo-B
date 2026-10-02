@@ -1,0 +1,23 @@
+id,name,host_id,neighbourhood_cleansed,property_type,room_type,accommodates,bedrooms,beds,price,amenities,calculated_host_listings_count
+1,Fixture listing 1,5001,Downtown,Entire rental unit,Entire home/apt,3,2,2,$100.00,"[""Wifi"", ""Kitchen""]",1
+2,Fixture listing 2,5002,Downtown,Entire rental unit,Entire home/apt,4,3,3,"$25,000.00",[],3
+3,Fixture listing 3,5003,Downtown,Entire rental unit,Private room,5,,1,$85.50,"[""Wifi""]",1
+4,Fixture listing 4,5004,Downtown,Entire rental unit,Entire home/apt,2,2,2,$0.00,"[""Hair dryer, ceramic"", ""TV with Netflix, HBO"", ""Wifi""]",0
+5,Fixture listing 5,5005,Downtown,Entire rental unit,Entire home/apt,3,,3,,,
+6,Fixture listing 6,5006,Downtown,Entire home,Entire home/apt,4,1,1,$-10.00,"[""Wifi"", ""Kitchen",abc
+7,Fixture listing 7,5007,Downtown,Entire home,Entire home/apt,5,2,2,abc,"{""a"": 1}",2
+8,Fixture listing 8,5008,Downtown,Entire home,Entire home/apt,2,3,3,$180.00,"['Wifi', 'Kitchen']",2
+9,Fixture listing 9,5009,Downtown,Entire home,Entire home/apt,3,1,1,$190.00,"[""Caf\u00e9 machine"", ""Wifi""]",1
+10,Fixture listing 10,5010,Downtown,Entire home,Entire home/apt,4,2,2,$200.00,"[""Amenity 0""]",2
+11,Fixture listing 11,5011,Montford,Entire rental unit,Entire home/apt,5,3,3,$210.00,"[""Amenity 0"", ""Amenity 1""]",1
+12,Fixture listing 12,5012,Montford,Entire rental unit,Private room,2,1,1,$220.00,"[""Amenity 0"", ""Amenity 1"", ""Amenity 2""]",2
+13,Fixture listing 13,5013,Montford,Entire rental unit,Entire home/apt,3,2,2,$230.00,"[""Amenity 0"", ""Amenity 1"", ""Amenity 2"", ""Amenity 3""]",1
+14,Fixture listing 14,5014,Montford,Entire rental unit,Entire home/apt,4,3,3,$240.00,"[""Amenity 0"", ""Amenity 1"", ""Amenity 2"", ""Amenity 3"", ""Amenity 4""]",2
+15,Fixture listing 15,5015,Montford,Entire rental unit,Entire home/apt,5,1,1,$250.00,"[""Amenity 0""]",1
+16,Fixture listing 16,5016,Montford,Entire home,Entire home/apt,2,2,2,$260.00,"[""Amenity 0"", ""Amenity 1""]",2
+17,Fixture listing 17,5017,Montford,Entire home,Entire home/apt,3,3,3,$270.00,"[""Amenity 0"", ""Amenity 1"", ""Amenity 2""]",1
+18,Fixture listing 18,5018,Montford,Entire home,Entire home/apt,4,1,1,$280.00,"[""Amenity 0"", ""Amenity 1"", ""Amenity 2"", ""Amenity 3""]",2
+19,Fixture listing 19,5019,Montford,Entire home,Entire home/apt,5,2,2,$290.00,"[""Amenity 0"", ""Amenity 1"", ""Amenity 2"", ""Amenity 3"", ""Amenity 4""]",1
+20,Fixture listing 20,5020,West Asheville,Private room in home,Private room,2,3,3,$300.00,"[""Amenity 0""]",2
+21,Fixture listing 21,5021,West Asheville,Private room in home,Private room,3,1,1,$310.00,"[""Amenity 0"", ""Amenity 1""]",1
+22,Fixture listing 22,5022,West Asheville,Private room in home,Shared room,4,2,2,$320.00,"[""Amenity 0"", ""Amenity 1"", ""Amenity 2""]",2
