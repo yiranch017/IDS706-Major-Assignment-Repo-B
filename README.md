@@ -131,17 +131,6 @@ The documented local and Docker commands worked as expected.
 <img width="601" height="130" alt="Screenshot 2026-10-01 at 22 42 39" src="https://github.com/user-attachments/assets/1610afed-c89e-437d-97b8-998320c93291" />
 
 
-- [ ] Date performed / environment:
-- [ ] `python -m pip install -r requirements.txt` succeeded:
-- [ ] `python main.py` completed on the real data:
-- [ ] All 9 required output files generated (CSV, 4 tables, 4 figures):
-- [ ] Figures open correctly and need no display:
-- [ ] `python -m pytest -v` passed:
-- [ ] `docker build` succeeded:
-- [ ] `docker run` (mounted raw data, writable outputs) succeeded and outputs appeared on host:
-- [ ] README commands matched what actually worked:
-- [ ] Known unresolved issues:
-
 ## AI-assisted workflow and reflection
 
 > To be completed as the Architect, Builder and Tester stages finish.
